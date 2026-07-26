@@ -1,0 +1,14 @@
+services:
+  lunentous:
+    build: .
+    ports:
+      - "${PORT:-8080}:8080"
+    environment:
+      - TZ=${TZ:-UTC}
+      - PORT=8080
+      - DB_PATH=/data/db.sqlite
+      - PHOTOS_DIR=/data/photos
+    volumes:
+      - ./server/data/db.sqlite:/data/db.sqlite
+      - ./server/data/photos:/data/photos
+    restart: unless-stopped
