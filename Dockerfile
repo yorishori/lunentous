@@ -2,7 +2,7 @@
 FROM node:20-slim AS web-build
 WORKDIR /app/web
 COPY web/package*.json ./
-RUN npm ci
+RUN npm install
 COPY web/ ./
 RUN npm run build
 
@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 make g+
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app/server
 COPY server/package*.json ./
-RUN npm ci
+RUN npm install
 COPY server/ ./
 RUN npm run build
 
@@ -23,7 +23,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 make g+
     && mkdir -p /data/photos
 WORKDIR /app
 COPY server/package*.json ./
-RUN npm ci --omit=dev && apt-get purge -y python3 make g++ && apt-get autoremove -y
+RUN npm install --omit=dev && apt-get purge -y python3 make g++ && apt-get autoremove -y
 COPY --from=server-build /app/server/dist ./dist
 COPY server/src/db/schema.sql ./dist/db/schema.sql
 COPY --from=web-build /app/web/dist ./web-dist
