@@ -16,6 +16,6 @@ function seedDefaultReminderTypes(): void {
   const insert = db.prepare(
     "INSERT OR IGNORE INTO reminder_types (name, icon, color) VALUES (?, ?, ?)"
   );
-  insert.run("Watering", "droplet", "#89b4fa");
-  insert.run("Fertilizing", "leaf", "#a6e3a1");
+  insert.run("Watering", "Droplet", "#89b4fa");
+  insert.run("Fertilizing", "Leaf", "#a6e3a1");
 }

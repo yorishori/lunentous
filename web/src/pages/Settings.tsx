@@ -2,9 +2,11 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, ApiError, getToken } from "../api/client";
 import type { ApiKey } from "../api/types";
+import { useToast } from "../components/Toast";
 
 export default function Settings() {
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
   const [label, setLabel] = useState("");
   const [createdToken, setCreatedToken] = useState<string | null>(null);
 
@@ -23,12 +25,18 @@ export default function Settings() {
       setCreatedToken(result.token);
       setLabel("");
       queryClient.invalidateQueries({ queryKey: ["api-keys"] });
+      showToast("API key created", "success");
     },
+    onError: (err) => showToast((err as ApiError).message ?? "Failed to create API key", "error"),
   });
 
   const revoke = useMutation({
     mutationFn: (id: number) => apiFetch(`/api-keys/${id}`, { method: "DELETE" }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["api-keys"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["api-keys"] });
+      showToast("API key revoked", "success");
+    },
+    onError: (err) => showToast((err as ApiError).message ?? "Failed to revoke API key", "error"),
   });
 
   async function downloadExport() {
@@ -41,6 +49,7 @@ export default function Settings() {
     a.download = `lunentous-export-${new Date().toISOString().slice(0, 10)}.tar.gz`;
     a.click();
     URL.revokeObjectURL(url);
+    showToast("Export downloaded", "success");
   }
 
   return (

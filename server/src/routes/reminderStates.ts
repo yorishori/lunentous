@@ -28,7 +28,8 @@ export function registerReminderStateRoutes(fastify: FastifyInstance): void {
     const today = todayLocalDate();
     const rows = db
       .prepare(
-        `SELECT rs.*, p.name as plant_name, rt.name as reminder_type_name
+        `SELECT rs.*, p.name as plant_name, rt.name as reminder_type_name, rt.icon as reminder_type_icon,
+                rt.color as reminder_type_color
          FROM reminder_states rs
          JOIN plants p ON p.id = rs.plant_id
          JOIN reminder_types rt ON rt.id = rs.reminder_type_id
@@ -44,7 +45,7 @@ export function registerReminderStateRoutes(fastify: FastifyInstance): void {
     const today = todayLocalDate();
     const rows = db
       .prepare(
-        `SELECT rs.*, rt.name as reminder_type_name, rt.color as reminder_type_color
+        `SELECT rs.*, rt.name as reminder_type_name, rt.icon as reminder_type_icon, rt.color as reminder_type_color
          FROM reminder_states rs JOIN reminder_types rt ON rt.id = rs.reminder_type_id
          WHERE rs.plant_id = ?`
       )

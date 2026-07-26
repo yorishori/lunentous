@@ -2,14 +2,17 @@ import { useState, type FormEvent } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, ApiError } from "../api/client";
 import type { ReminderType } from "../api/types";
+import { useToast } from "./Toast";
 
 interface Props {
   plantId: number;
   reminderTypes: ReminderType[];
+  onDone: () => void;
 }
 
-export default function TimelineEntryForm({ plantId, reminderTypes }: Props) {
+export default function TimelineEntryForm({ plantId, reminderTypes, onDone }: Props) {
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
   const [eventDate, setEventDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [reminderTypeId, setReminderTypeId] = useState<string>("");
   const [text, setText] = useState("");
@@ -29,10 +32,11 @@ export default function TimelineEntryForm({ plantId, reminderTypes }: Props) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["timeline", plantId] });
       queryClient.invalidateQueries({ queryKey: ["plant", plantId] });
-      setText("");
-      setFiles(null);
-      setReminderTypeId("");
+      queryClient.invalidateQueries({ queryKey: ["reminder-states"] });
+      showToast("Timeline entry added", "success");
+      onDone();
     },
+    onError: (err) => showToast((err as ApiError).message ?? "Failed to add timeline entry", "error"),
   });
 
   function handleSubmit(e: FormEvent) {
@@ -41,13 +45,13 @@ export default function TimelineEntryForm({ plantId, reminderTypes }: Props) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="card" style={{ marginBottom: "1rem" }}>
+    <form onSubmit={handleSubmit}>
       <div className="form-row">
         <label>Date</label>
         <input type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} required />
       </div>
       <div className="form-row">
-        <label>Reminder type (optional -- tags this entry as completing a reminder)</label>
+        <label>Reminder type (optional — tags this entry as completing a reminder)</label>
         <select value={reminderTypeId} onChange={(e) => setReminderTypeId(e.target.value)}>
           <option value="">Journal note only</option>
           {reminderTypes.map((t) => (
@@ -59,16 +63,16 @@ export default function TimelineEntryForm({ plantId, reminderTypes }: Props) {
       </div>
       <div className="form-row">
         <label>Notes</label>
-        <textarea value={text} onChange={(e) => setText(e.target.value)} rows={2} />
+        <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} />
       </div>
       <div className="form-row">
         <label>Photos</label>
         <input type="file" accept="image/*" multiple onChange={(e) => setFiles(e.target.files)} />
       </div>
-      <button type="submit" className="btn" disabled={create.isPending}>
+      {create.isError && <p style={{ color: "var(--overdue)" }}>{(create.error as ApiError).message}</p>}
+      <button type="submit" className="btn" disabled={create.isPending} style={{ width: "100%" }}>
         Add entry
       </button>
-      {create.isError && <p style={{ color: "var(--overdue)" }}>{(create.error as ApiError).message}</p>}
     </form>
   );
 }

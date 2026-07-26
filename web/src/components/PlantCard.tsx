@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { Sprout } from "lucide-react";
 import { apiFetch } from "../api/client";
 import type { Plant, PlantDetail } from "../api/types";
 
@@ -22,14 +23,41 @@ export default function PlantCard({ plant }: { plant: Plant }) {
 
   return (
     <Link to={`/plants/${plant.id}`} className="card" style={{ textDecoration: "none", color: "inherit", display: "block" }}>
-      <h3 style={{ margin: "0 0 0.25rem" }}>{plant.name}</h3>
-      {plant.species && <p style={{ color: "var(--text-muted)", margin: "0 0 0.5rem" }}>{plant.species}</p>}
+      <div style={{ display: "flex", gap: "0.85rem", alignItems: "center", marginBottom: "0.6rem" }}>
+        {plant.avatar_photo_path ? (
+          <img
+            src={`/photos/${plant.avatar_photo_path}`}
+            alt=""
+            style={{ width: 48, height: 48, borderRadius: "999px", objectFit: "cover", flexShrink: 0 }}
+          />
+        ) : (
+          <span
+            style={{
+              width: 48,
+              height: 48,
+              borderRadius: "999px",
+              background: "var(--accent-soft)",
+              color: "var(--accent)",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <Sprout size={22} />
+          </span>
+        )}
+        <div style={{ minWidth: 0 }}>
+          <h3 style={{ margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{plant.name}</h3>
+          {plant.species && (
+            <p style={{ color: "var(--text-muted)", margin: 0, fontSize: "0.85rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {plant.species}
+            </p>
+          )}
+        </div>
+      </div>
       {detail?.active_phase_windows.map((w) => (
-        <span
-          key={w.id}
-          className="badge"
-          style={{ background: "var(--accent-soft)", color: "var(--accent)", marginRight: "0.35rem" }}
-        >
+        <span key={w.id} className="badge neutral" style={{ marginRight: "0.35rem" }}>
           {w.phase_type_name}
         </span>
       ))}

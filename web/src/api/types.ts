@@ -5,6 +5,7 @@ export interface Plant {
   location: string | null;
   acquired_date: string | null;
   avatar_photo_id: number | null;
+  avatar_photo_path: string | null;
   general_notes: string | null;
   archived: number;
   created_at: string;
@@ -53,7 +54,9 @@ export interface ReminderState {
   notified: number;
   days_overdue: number | null;
   reminder_type_name?: string;
+  reminder_type_icon?: string | null;
   reminder_type_color?: string;
+  plant_name?: string;
 }
 
 export interface PhaseWindow {

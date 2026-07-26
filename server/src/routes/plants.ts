@@ -15,9 +15,15 @@ interface PlantRow {
   location: string | null;
   acquired_date: string | null;
   avatar_photo_id: number | null;
+  avatar_photo_path: string | null;
   general_notes: string | null;
   archived: number;
 }
+
+// Joins in the avatar photo's file path so the frontend can render it
+// directly without a second round-trip per plant.
+const PLANT_SELECT = `SELECT plants.*, photos.file_path as avatar_photo_path
+  FROM plants LEFT JOIN photos ON photos.id = plants.avatar_photo_id`;
 
 const createPlantSchema = z.object({
   name: z.string().min(1),
@@ -33,8 +39,8 @@ export function registerPlantRoutes(fastify: FastifyInstance): void {
     const query = request.query as { archived?: string };
     const archived = parseBoolFlag(query.archived);
     return archived === null
-      ? db.prepare("SELECT * FROM plants ORDER BY name").all()
-      : db.prepare("SELECT * FROM plants WHERE archived = ? ORDER BY name").all(archived ? 1 : 0);
+      ? db.prepare(`${PLANT_SELECT} ORDER BY plants.name`).all()
+      : db.prepare(`${PLANT_SELECT} WHERE plants.archived = ? ORDER BY plants.name`).all(archived ? 1 : 0);
   });
 
   fastify.post("/api/plants", async (request, reply) => {
@@ -44,12 +50,12 @@ export function registerPlantRoutes(fastify: FastifyInstance): void {
         "INSERT INTO plants (name, species, location, acquired_date, general_notes) VALUES (?, ?, ?, ?, ?)"
       )
       .run(body.name, body.species ?? null, body.location ?? null, body.acquired_date ?? null, body.general_notes ?? null);
-    return reply.code(201).send(db.prepare("SELECT * FROM plants WHERE id = ?").get(result.lastInsertRowid));
+    return reply.code(201).send(db.prepare(`${PLANT_SELECT} WHERE plants.id = ?`).get(result.lastInsertRowid));
   });
 
   fastify.get("/api/plants/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
-    const plant = db.prepare("SELECT * FROM plants WHERE id = ?").get(id) as PlantRow | undefined;
+    const plant = db.prepare(`${PLANT_SELECT} WHERE plants.id = ?`).get(id) as PlantRow | undefined;
     if (!plant) return reply.code(404).send({ error: "not found" });
 
     const today = todayLocalDate();
@@ -89,7 +95,7 @@ export function registerPlantRoutes(fastify: FastifyInstance): void {
       `UPDATE plants SET name = ?, species = ?, location = ?, acquired_date = ?, general_notes = ?,
        updated_at = CURRENT_TIMESTAMP WHERE id = ?`
     ).run(merged.name, merged.species, merged.location, merged.acquired_date, merged.general_notes, id);
-    return db.prepare("SELECT * FROM plants WHERE id = ?").get(id);
+    return db.prepare(`${PLANT_SELECT} WHERE plants.id = ?`).get(id);
   });
 
   for (const [suffix, archivedValue] of [
@@ -100,7 +106,7 @@ export function registerPlantRoutes(fastify: FastifyInstance): void {
       const { id } = request.params as { id: string };
       const result = db.prepare("UPDATE plants SET archived = ? WHERE id = ?").run(archivedValue, id);
       if (result.changes === 0) return reply.code(404).send({ error: "not found" });
-      return db.prepare("SELECT * FROM plants WHERE id = ?").get(id);
+      return db.prepare(`${PLANT_SELECT} WHERE plants.id = ?`).get(id);
     });
   }
 
@@ -121,6 +127,6 @@ export function registerPlantRoutes(fastify: FastifyInstance): void {
       .run(id, filename);
     db.prepare("UPDATE plants SET avatar_photo_id = ? WHERE id = ?").run(result.lastInsertRowid, id);
 
-    return db.prepare("SELECT * FROM plants WHERE id = ?").get(id);
+    return db.prepare(`${PLANT_SELECT} WHERE plants.id = ?`).get(id);
   });
 }

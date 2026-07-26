@@ -2,18 +2,20 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, ApiError } from "../api/client";
 import type { PhaseType, PhaseWindow } from "../api/types";
+import { useToast } from "./Toast";
 
 interface Props {
   plantId: number;
   phaseTypes: PhaseType[];
   existingWindow?: PhaseWindow;
-  onDone?: () => void;
+  onDone: () => void;
 }
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 export default function PhaseWindowForm({ plantId, phaseTypes, existingWindow, onDone }: Props) {
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
   const [phaseTypeId, setPhaseTypeId] = useState<number>(existingWindow?.phase_type_id ?? phaseTypes[0]?.id ?? 0);
   const [startMonth, setStartMonth] = useState(existingWindow?.start_month ?? 1);
   const [startDay, setStartDay] = useState(existingWindow?.start_day ?? 1);
@@ -42,17 +44,24 @@ export default function PhaseWindowForm({ plantId, phaseTypes, existingWindow, o
     },
     onSuccess: () => {
       invalidate();
-      onDone?.();
+      showToast(existingWindow ? "Phase window updated" : "Phase window created", "success");
+      onDone();
     },
+    onError: (err) => showToast((err as ApiError).message ?? "Failed to save phase window", "error"),
   });
 
   const remove = useMutation({
     mutationFn: () => apiFetch(`/phase-windows/${existingWindow!.id}`, { method: "DELETE" }),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      invalidate();
+      showToast("Phase window deleted", "success");
+      onDone();
+    },
+    onError: (err) => showToast((err as ApiError).message ?? "Failed to delete phase window", "error"),
   });
 
   return (
-    <div className="card" style={{ marginBottom: "0.75rem" }}>
+    <div>
       <div className="form-row">
         <label>Phase type</label>
         <select value={phaseTypeId} onChange={(e) => setPhaseTypeId(Number(e.target.value))}>
@@ -89,17 +98,19 @@ export default function PhaseWindowForm({ plantId, phaseTypes, existingWindow, o
         <label>Notes</label>
         <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
       </div>
-      <div style={{ display: "flex", gap: "0.5rem" }}>
+      {save.isError && <p style={{ color: "var(--overdue)" }}>{(save.error as ApiError).message}</p>}
+      <div style={{ display: "flex", justifyContent: "space-between", marginTop: "1.5rem" }}>
+        <div>
+          {existingWindow && (
+            <button type="button" className="btn danger" onClick={() => remove.mutate()} disabled={remove.isPending}>
+              Delete
+            </button>
+          )}
+        </div>
         <button type="button" className="btn" onClick={() => save.mutate()} disabled={save.isPending}>
           {existingWindow ? "Save changes" : "Add phase window"}
         </button>
-        {existingWindow && (
-          <button type="button" className="btn secondary" onClick={() => remove.mutate()} disabled={remove.isPending}>
-            Delete
-          </button>
-        )}
       </div>
-      {save.isError && <p style={{ color: "var(--overdue)" }}>{(save.error as ApiError).message}</p>}
     </div>
   );
 }
