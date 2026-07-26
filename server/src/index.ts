@@ -25,7 +25,12 @@ fastify.setErrorHandler((error, request, reply) => {
     return reply.code(400).send({ error: "validation error", details: error.issues });
   }
   fastify.log.error(error);
-  return reply.code(error.statusCode ?? 500).send({ error: error.message ?? "internal server error" });
+  const statusCode =
+    typeof error === "object" && error !== null && "statusCode" in error && typeof error.statusCode === "number"
+      ? error.statusCode
+      : 500;
+  const message = error instanceof Error ? error.message : "internal server error";
+  return reply.code(statusCode).send({ error: message });
 });
 
 await registerMultipart(fastify);
