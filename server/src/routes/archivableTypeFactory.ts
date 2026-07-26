@@ -55,9 +55,11 @@ export function registerArchivableTypeRoutes(fastify: FastifyInstance, opts: Arc
 
   fastify.post(path, async (request, reply) => {
     const body = createSchema.parse(request.body);
-    const result = db
-      .prepare(`INSERT INTO ${table} (name, icon, color) VALUES (?, ?, ?)`)
-      .run(body.name, hasIcon ? (body.icon ?? null) : null, body.color ?? null);
+    const result = hasIcon
+      ? db
+          .prepare(`INSERT INTO ${table} (name, icon, color) VALUES (?, ?, ?)`)
+          .run(body.name, body.icon ?? null, body.color ?? null)
+      : db.prepare(`INSERT INTO ${table} (name, color) VALUES (?, ?)`).run(body.name, body.color ?? null);
     return reply.code(201).send(db.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(result.lastInsertRowid));
   });
 
@@ -68,12 +70,16 @@ export function registerArchivableTypeRoutes(fastify: FastifyInstance, opts: Arc
 
     const body = updateSchema.parse(request.body);
     const merged = { ...existing, ...body };
-    db.prepare(`UPDATE ${table} SET name = ?, icon = ?, color = ? WHERE id = ?`).run(
-      merged.name,
-      hasIcon ? (merged.icon ?? null) : null,
-      merged.color ?? null,
-      id
-    );
+    if (hasIcon) {
+      db.prepare(`UPDATE ${table} SET name = ?, icon = ?, color = ? WHERE id = ?`).run(
+        merged.name,
+        merged.icon ?? null,
+        merged.color ?? null,
+        id
+      );
+    } else {
+      db.prepare(`UPDATE ${table} SET name = ?, color = ? WHERE id = ?`).run(merged.name, merged.color ?? null, id);
+    }
     return db.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(id);
   });
 
