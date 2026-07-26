@@ -10,6 +10,7 @@ import type {
   ReminderType,
   PhaseType,
   PhaseWindow,
+  TimelineEvent,
 } from "../api/types";
 import { useToast } from "../components/Toast";
 import SlideOver from "../components/SlideOver";
@@ -43,7 +44,7 @@ type SlideoverState =
   | { type: "plant" }
   | { type: "rule"; rule?: ReminderRule }
   | { type: "window"; window?: PhaseWindow }
-  | { type: "timeline-entry" };
+  | { type: "timeline-entry"; event?: TimelineEvent };
 
 function ExistingPlant({ plantId }: { plantId: number }) {
   const navigate = useNavigate();
@@ -174,7 +175,7 @@ function ExistingPlant({ plantId }: { plantId: number }) {
             <div className="item-row-actions">
               <button
                 type="button"
-                className="btn icon-btn secondary"
+                className="btn icon-btn secondary icon-btn-edit"
                 onClick={() => setSlideover({ type: "window", window: w })}
                 aria-label="Edit phase window"
               >
@@ -228,7 +229,7 @@ function ExistingPlant({ plantId }: { plantId: number }) {
               <div className="item-row-actions">
                 <button
                   type="button"
-                  className="btn icon-btn secondary"
+                  className="btn icon-btn secondary icon-btn-edit"
                   onClick={() => setSlideover({ type: "rule", rule })}
                   aria-label="Edit reminder rule"
                 >
@@ -248,7 +249,11 @@ function ExistingPlant({ plantId }: { plantId: number }) {
             <Plus size={15} /> Log entry
           </button>
         </div>
-        <TimelineFeed plantId={plantId} reminderTypes={reminderTypesQuery.data ?? []} />
+        <TimelineFeed
+          plantId={plantId}
+          reminderTypes={reminderTypesQuery.data ?? []}
+          onEdit={(event) => setSlideover({ type: "timeline-entry", event })}
+        />
       </section>
 
       <SlideOver open={slideover.type === "plant"} title="Edit plant" onClose={closeSlideover}>
@@ -285,9 +290,18 @@ function ExistingPlant({ plantId }: { plantId: number }) {
         )}
       </SlideOver>
 
-      <SlideOver open={slideover.type === "timeline-entry"} title="Log timeline entry" onClose={closeSlideover}>
+      <SlideOver
+        open={slideover.type === "timeline-entry"}
+        title={slideover.type === "timeline-entry" && slideover.event ? "Edit timeline entry" : "Log timeline entry"}
+        onClose={closeSlideover}
+      >
         {slideover.type === "timeline-entry" && (
-          <TimelineEntryForm plantId={plantId} reminderTypes={reminderTypesQuery.data ?? []} onDone={closeSlideover} />
+          <TimelineEntryForm
+            plantId={plantId}
+            reminderTypes={reminderTypesQuery.data ?? []}
+            existingEvent={slideover.event}
+            onDone={closeSlideover}
+          />
         )}
       </SlideOver>
     </div>

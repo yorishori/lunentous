@@ -50,20 +50,27 @@ export function resolveInterval(
 }
 
 /** Repeatedly applies interval resolution forward from a materialized due
- * date, assuming on-time completion each time (spec §6 calendar view). */
-export function projectFutureOccurrences(
+ * date, assuming on-time completion each time (spec §6 calendar view),
+ * collecting every occurrence that lands within [rangeStart, rangeEnd] --
+ * including the starting due date itself, if it's in range. Display only;
+ * never written back to the database. `maxIterations` bounds the walk when
+ * the due date is far outside the requested range. */
+export function projectOccurrencesInRange(
   fromDueDate: ISODate,
   defaultIntervalDays: number | null,
   periods: OverridePeriodLike[],
-  count: number
+  rangeStart: ISODate,
+  rangeEnd: ISODate,
+  maxIterations = 500
 ): ISODate[] {
   const results: ISODate[] = [];
   let current = fromDueDate;
-  for (let i = 0; i < count; i++) {
+  for (let i = 0; i < maxIterations; i++) {
+    if (current > rangeEnd) break;
+    if (current >= rangeStart) results.push(current);
     const interval = resolveInterval(defaultIntervalDays, periods, current);
     if (interval == null) break;
     current = addDays(current, interval);
-    results.push(current);
   }
   return results;
 }

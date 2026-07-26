@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Pencil, Plus } from "lucide-react";
 import { apiFetch, ApiError } from "../api/client";
 import { useToast } from "./Toast";
-import IconPicker from "./IconPicker";
+import SlideOver from "./SlideOver";
+import TypeForm from "./TypeForm";
 import { getIcon } from "../lib/icons";
 
 interface TypeRow {
@@ -27,39 +29,19 @@ export default function TypeManager({ basePath, hasIcon, queryKey, noun }: Props
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const [showArchived, setShowArchived] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [newIcon, setNewIcon] = useState<string | null>(null);
-  const [newColor, setNewColor] = useState("#cba6f7");
+  const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<TypeRow | null>(null);
 
   const listQuery = useQuery({
     queryKey: [queryKey, { archived: showArchived }],
     queryFn: () => apiFetch<TypeRow[]>(`${basePath}?archived=${showArchived}`),
   });
 
-  function invalidate() {
-    queryClient.invalidateQueries({ queryKey: [queryKey] });
-  }
-
-  const create = useMutation({
-    mutationFn: () =>
-      apiFetch(basePath, {
-        method: "POST",
-        body: { name: newName, icon: hasIcon ? newIcon ?? undefined : undefined, color: newColor || undefined },
-      }),
-    onSuccess: () => {
-      setNewName("");
-      setNewIcon(null);
-      invalidate();
-      showToast(`${noun} created`, "success");
-    },
-    onError: (err) => showToast((err as ApiError).message ?? `Failed to create ${noun.toLowerCase()}`, "error"),
-  });
-
   const archive = useMutation({
     mutationFn: ({ id, action }: { id: number; action: "archive" | "unarchive" }) =>
       apiFetch(`${basePath}/${id}/${action}`, { method: "POST" }),
     onSuccess: (_data, variables) => {
-      invalidate();
+      queryClient.invalidateQueries({ queryKey: [queryKey] });
       showToast(`${noun} ${variables.action === "archive" ? "archived" : "unarchived"}`, "success");
     },
     onError: (err) => showToast((err as ApiError).message ?? "Something went wrong", "error"),
@@ -67,31 +49,14 @@ export default function TypeManager({ basePath, hasIcon, queryKey, noun }: Props
 
   return (
     <div>
-      <div className="card" style={{ marginBottom: "1.25rem" }}>
-        <h2 style={{ marginTop: 0 }}>Add {noun.toLowerCase()}</h2>
-        <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "flex-end" }}>
-          <div className="form-row" style={{ marginBottom: 0 }}>
-            <label>Name</label>
-            <input value={newName} onChange={(e) => setNewName(e.target.value)} />
-          </div>
-          {hasIcon && (
-            <div className="form-row" style={{ marginBottom: 0 }}>
-              <label>Icon</label>
-              <IconPicker value={newIcon} onChange={setNewIcon} />
-            </div>
-          )}
-          <div className="form-row" style={{ marginBottom: 0 }}>
-            <label>Color</label>
-            <input type="color" value={newColor} onChange={(e) => setNewColor(e.target.value)} />
-          </div>
-          <button type="button" className="btn" onClick={() => create.mutate()} disabled={!newName.trim() || create.isPending}>
-            Add
-          </button>
-        </div>
-        {create.isError && <p style={{ color: "var(--overdue)" }}>{(create.error as ApiError).message}</p>}
+      <div className="section-header">
+        <h2 style={{ margin: 0 }}>{noun}s</h2>
+        <button type="button" className="btn" onClick={() => setAdding(true)}>
+          <Plus size={15} /> Add {noun.toLowerCase()}
+        </button>
       </div>
 
-      <label style={{ display: "flex", gap: "0.4rem", alignItems: "center", marginBottom: "0.85rem" }}>
+      <label className="checkbox-row" style={{ marginBottom: "0.85rem" }}>
         <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
         Show archived
       </label>
@@ -115,14 +80,35 @@ export default function TypeManager({ basePath, hasIcon, queryKey, noun }: Props
                     flexShrink: 0,
                   }}
                 >
-                  {Icon ? <Icon size={18} /> : <span style={{ width: "0.6rem", height: "0.6rem", borderRadius: "999px", background: row.color ?? "var(--accent)" }} />}
+                  {Icon ? (
+                    <Icon size={18} />
+                  ) : (
+                    <span
+                      style={{
+                        width: "0.6rem",
+                        height: "0.6rem",
+                        borderRadius: "999px",
+                        background: row.color ?? "var(--accent)",
+                      }}
+                    />
+                  )}
                 </span>
                 <div>
                   <div style={{ fontWeight: 600 }}>{row.name}</div>
-                  <div style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>Used by {row.usage_count} plant{row.usage_count === 1 ? "" : "s"}</div>
+                  <div style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
+                    Used by {row.usage_count} plant{row.usage_count === 1 ? "" : "s"}
+                  </div>
                 </div>
               </div>
               <div className="item-row-actions">
+                <button
+                  type="button"
+                  className="btn icon-btn secondary icon-btn-edit"
+                  onClick={() => setEditing(row)}
+                  aria-label={`Edit ${row.name}`}
+                >
+                  <Pencil size={14} />
+                </button>
                 <button
                   type="button"
                   className="btn secondary"
@@ -136,6 +122,23 @@ export default function TypeManager({ basePath, hasIcon, queryKey, noun }: Props
         })}
         {listQuery.data && listQuery.data.length === 0 && <p style={{ color: "var(--text-muted)" }}>Nothing here yet.</p>}
       </div>
+
+      <SlideOver open={adding} title={`Add ${noun.toLowerCase()}`} onClose={() => setAdding(false)}>
+        <TypeForm basePath={basePath} hasIcon={hasIcon} queryKey={queryKey} noun={noun} onDone={() => setAdding(false)} />
+      </SlideOver>
+
+      <SlideOver open={editing !== null} title={`Edit ${noun.toLowerCase()}`} onClose={() => setEditing(null)}>
+        {editing && (
+          <TypeForm
+            basePath={basePath}
+            hasIcon={hasIcon}
+            queryKey={queryKey}
+            noun={noun}
+            existing={editing}
+            onDone={() => setEditing(null)}
+          />
+        )}
+      </SlideOver>
     </div>
   );
 }

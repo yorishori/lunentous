@@ -217,6 +217,9 @@ a {
 
 .login-form button,
 .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
   padding: 0.6rem 1.1rem;
   border-radius: var(--radius-pill);
   border: none;
@@ -225,6 +228,7 @@ a {
   cursor: pointer;
   font-weight: 600;
   font-family: inherit;
+  text-decoration: none;
   transition: transform 0.15s var(--ease), box-shadow 0.15s var(--ease), opacity 0.15s var(--ease);
   box-shadow: 0 6px 16px -8px var(--accent-soft);
 }
@@ -756,4 +760,257 @@ td {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.task-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+/* ---------- Icon button hover colors ---------- */
+
+.icon-btn-edit:hover {
+  background: var(--accent-soft) !important;
+  color: var(--accent) !important;
+  border-color: transparent !important;
+}
+
+.icon-btn-delete:hover {
+  background: var(--overdue-soft) !important;
+  color: var(--overdue) !important;
+  border-color: transparent !important;
+}
+
+.icon-btn-done:hover {
+  background: var(--ok-soft) !important;
+  color: var(--ok) !important;
+  border-color: transparent !important;
+}
+
+/* ---------- Checkboxes (native, themed via accent-color) ---------- */
+
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--accent);
+  width: 1.05rem;
+  height: 1.05rem;
+  cursor: pointer;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+/* ---------- Modal (centered dialog) ---------- */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  animation: fade-in-backdrop 0.2s var(--ease);
+}
+
+.modal-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 30px 60px -20px hsl(var(--shadow-color) / 0.6);
+  padding: 1.5rem;
+  width: min(420px, 100%);
+  max-height: 85vh;
+  overflow-y: auto;
+  animation: pop-in 0.22s var(--ease);
+}
+
+.modal-box h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.05rem;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}
+
+/* ---------- Color picker ---------- */
+
+.color-picker-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.65rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  cursor: pointer;
+}
+
+.color-picker-trigger:hover {
+  border-color: var(--accent);
+}
+
+.color-swatch {
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  flex-shrink: 0;
+}
+
+.color-picker-dropdown {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  left: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 20px 40px -18px hsl(var(--shadow-color) / 0.6);
+  padding: 0.75rem;
+  z-index: 30;
+  animation: pop-in 0.15s var(--ease);
+  width: max-content;
+}
+
+.color-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.4rem;
+  margin-bottom: 0.6rem;
+}
+
+.color-swatch-btn {
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.12s var(--ease);
+}
+
+.color-swatch-btn:hover {
+  transform: scale(1.15);
+}
+
+.color-swatch-btn.selected {
+  border-color: var(--text);
+}
+
+.color-picker-custom {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.color-picker-custom input[type="color"] {
+  width: 2rem;
+  height: 1.6rem;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: none;
+  cursor: pointer;
+}
+
+/* ---------- Multiselect ---------- */
+
+.multiselect {
+  position: relative;
+}
+
+.multiselect-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  cursor: pointer;
+  min-width: 200px;
+}
+
+.multiselect-trigger:hover {
+  border-color: var(--accent);
+}
+
+.multiselect-dropdown {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  left: 0;
+  width: max(100%, 220px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 20px 40px -18px hsl(var(--shadow-color) / 0.6);
+  padding: 0.6rem;
+  z-index: 30;
+  max-height: 260px;
+  overflow-y: auto;
+  animation: pop-in 0.15s var(--ease);
+}
+
+.multiselect-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.multiselect-option:hover {
+  background: var(--surface-hover);
+}
+
+/* ---------- Calendar events & detail panel ---------- */
+
+.calendar-phase-band {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0.2rem;
+  height: 4px;
+  border-radius: 999px;
+  opacity: 0.7;
+}
+
+.calendar-day-cell {
+  position: relative;
+  cursor: pointer;
+  transition: background-color 0.15s var(--ease);
+}
+
+.calendar-day-cell:hover {
+  background: var(--surface-hover) !important;
+}
+
+.calendar-marker {
+  cursor: pointer;
+  transition: transform 0.12s var(--ease), filter 0.12s var(--ease);
+}
+
+.calendar-marker:hover {
+  transform: scale(1.03);
+  filter: brightness(1.15);
+}
+
+.calendar-detail-panel {
+  margin-top: 1.25rem;
+  animation: fade-in 0.2s var(--ease);
 }

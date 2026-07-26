@@ -52,8 +52,14 @@ const updateTimelineSchema = z.object({
 export function registerTimelineRoutes(fastify: FastifyInstance): void {
   fastify.get("/api/plants/:plantId/timeline", async (request) => {
     const { plantId } = request.params as { plantId: string };
-    const query = request.query as { reminder_type_id?: string; limit?: string; before?: string };
-    const limit = query.limit ? Math.max(1, Math.min(100, parseInt(query.limit, 10))) : 20;
+    const query = request.query as {
+      reminder_type_id?: string;
+      limit?: string;
+      before?: string;
+      from?: string;
+      to?: string;
+    };
+    const limit = query.limit ? Math.max(1, Math.min(200, parseInt(query.limit, 10))) : 20;
 
     const conditions = ["plant_id = ?"];
     const params: (string | number)[] = [plantId];
@@ -61,6 +67,17 @@ export function registerTimelineRoutes(fastify: FastifyInstance): void {
     if (query.reminder_type_id) {
       conditions.push("reminder_type_id = ?");
       params.push(query.reminder_type_id);
+    }
+
+    // Date-range filter, used by the calendar view to fetch exactly the
+    // entries visible in a given month rather than relying on pagination.
+    if (query.from) {
+      conditions.push("event_date >= ?");
+      params.push(query.from);
+    }
+    if (query.to) {
+      conditions.push("event_date <= ?");
+      params.push(query.to);
     }
 
     // `before` is a timeline event id cursor: returns events strictly older
@@ -153,6 +170,34 @@ export function registerTimelineRoutes(fastify: FastifyInstance): void {
     }
 
     return getTimelineEventWithPhotos(Number(id));
+  });
+
+  // Appends photos to an existing entry -- kept separate from PATCH so field
+  // updates can stay a plain JSON body; mirrors POST /plants/:id/avatar.
+  fastify.post("/api/timeline/:id/photos", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const existing = db.prepare("SELECT * FROM timeline_events WHERE id = ?").get(id) as
+      | TimelineEventRow
+      | undefined;
+    if (!existing) return reply.code(404).send({ error: "not found" });
+
+    const parts = request.parts();
+    const savedFilenames: string[] = [];
+    for await (const part of parts) {
+      if (part.type === "file") {
+        const ext = path.extname(part.filename) || "";
+        const filename = `${crypto.randomUUID()}${ext}`;
+        await pipeline(part.file, fs.createWriteStream(path.join(photosDir, filename)));
+        savedFilenames.push(filename);
+      }
+    }
+
+    const insertPhoto = db.prepare("INSERT INTO photos (plant_id, timeline_event_id, file_path) VALUES (?, ?, ?)");
+    for (const filename of savedFilenames) {
+      insertPhoto.run(existing.plant_id, id, filename);
+    }
+
+    return reply.code(201).send(getTimelineEventWithPhotos(Number(id)));
   });
 
   fastify.delete("/api/timeline/:id", async (request, reply) => {

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { apiFetch, ApiError } from "../api/client";
 import type { ReminderType, TimelineEvent } from "../api/types";
 import { useToast } from "./Toast";
@@ -8,9 +8,10 @@ import { useToast } from "./Toast";
 interface Props {
   plantId: number;
   reminderTypes: ReminderType[];
+  onEdit: (event: TimelineEvent) => void;
 }
 
-export default function TimelineFeed({ plantId, reminderTypes }: Props) {
+export default function TimelineFeed({ plantId, reminderTypes, onEdit }: Props) {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const [filterTypeId, setFilterTypeId] = useState<string>("");
@@ -70,14 +71,24 @@ export default function TimelineFeed({ plantId, reminderTypes }: Props) {
         <div key={event.id} className="card" style={{ marginBottom: "0.5rem" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <strong>{event.event_date}</strong>
-            <button
-              type="button"
-              className="btn icon-btn secondary"
-              onClick={() => remove.mutate(event.id)}
-              aria-label="Delete entry"
-            >
-              <Trash2 size={15} />
-            </button>
+            <div style={{ display: "flex", gap: "0.4rem" }}>
+              <button
+                type="button"
+                className="btn icon-btn secondary icon-btn-edit"
+                onClick={() => onEdit(event)}
+                aria-label="Edit entry"
+              >
+                <Pencil size={15} />
+              </button>
+              <button
+                type="button"
+                className="btn icon-btn secondary icon-btn-delete"
+                onClick={() => remove.mutate(event.id)}
+                aria-label="Delete entry"
+              >
+                <Trash2 size={15} />
+              </button>
+            </div>
           </div>
           {event.reminder_type_id != null && <span className="badge ok">{typeName(event.reminder_type_id)}</span>}
           {event.text && <p>{event.text}</p>}
