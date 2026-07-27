@@ -43,6 +43,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- Offers Lunentous as a share target from Gallery/Camera/etc;
+                 handled by ui/nav/DeepLinkTarget.kt's ShareImage case. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+
             <!-- Static app shortcuts, see res/xml/shortcuts.xml. -->
             <meta-data
                 android:name="android.app.shortcuts"

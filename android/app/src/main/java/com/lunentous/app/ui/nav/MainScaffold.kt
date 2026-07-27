@@ -18,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -33,10 +34,14 @@ import com.lunentous.app.ui.plant.PlantDetailScreen
 import com.lunentous.app.ui.plant.PlantFormSheet
 import com.lunentous.app.ui.plant.PlantFormTarget
 import com.lunentous.app.ui.settings.SettingsScreen
+import com.lunentous.app.ui.share.importSharedImage
 import com.lunentous.app.ui.sync.SyncIssuesScreen
 import com.lunentous.app.ui.sync.SyncStatusBar
 import com.lunentous.app.ui.types.PhaseTypesScreen
 import com.lunentous.app.ui.types.ReminderTypesScreen
+import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 private const val PLANT_LOCAL_ID_ARG = "plantLocalId"
 private const val PLANT_DETAIL_ROUTE = "plant_detail/{$PLANT_LOCAL_ID_ARG}"
@@ -51,6 +56,7 @@ private const val SYNC_ISSUES_ROUTE = "sync_issues"
 @Composable
 fun MainScaffold(container: AppContainer, deepLinkTarget: DeepLinkTarget? = null, onDeepLinkConsumed: () -> Unit = {}) {
     val navController = rememberNavController()
+    val context = LocalContext.current
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
 
@@ -58,6 +64,11 @@ fun MainScaffold(container: AppContainer, deepLinkTarget: DeepLinkTarget? = null
     // dashboard's FAB and the plant detail screen's edit action need to
     // open the same shared create/edit sheet.
     var plantFormTarget by remember { mutableStateOf<PlantFormTarget?>(null) }
+
+    // Set only by a ShareImage deep link, once the shared content:// URI
+    // has been copied to a durable local File -- consumed by CalendarScreen
+    // to pre-open the new-entry sheet with that photo attached.
+    var sharedPhotoFile by remember { mutableStateOf<File?>(null) }
 
     // Widget tap / app shortcut / share-to-app / notification tap all land
     // here as a DeepLinkTarget, parsed once from the launching Intent (see
@@ -69,7 +80,13 @@ fun MainScaffold(container: AppContainer, deepLinkTarget: DeepLinkTarget? = null
             is DeepLinkTarget.PlantDetail -> navController.navigate(plantDetailRoute(target.plantLocalId))
             DeepLinkTarget.Calendar -> navigateTo(navController, NavDestination.Calendar)
             DeepLinkTarget.NewTimelineEntry -> navigateTo(navController, NavDestination.Calendar)
-            is DeepLinkTarget.ShareImage -> navigateTo(navController, NavDestination.Calendar)
+            is DeepLinkTarget.ShareImage -> {
+                val file = withContext(Dispatchers.IO) { importSharedImage(context, target.uri) }
+                if (file != null) {
+                    sharedPhotoFile = file
+                    navigateTo(navController, NavDestination.Calendar)
+                }
+            }
             null -> return@LaunchedEffect
         }
         onDeepLinkConsumed()
@@ -127,7 +144,11 @@ fun MainScaffold(container: AppContainer, deepLinkTarget: DeepLinkTarget? = null
                             )
                             NavDestination.ReminderTypes -> ReminderTypesScreen(container = container)
                             NavDestination.PhaseTypes -> PhaseTypesScreen(container = container)
-                            NavDestination.Calendar -> CalendarScreen(container = container)
+                            NavDestination.Calendar -> CalendarScreen(
+                                container = container,
+                                sharedPhotoFile = sharedPhotoFile,
+                                onSharedPhotoConsumed = { sharedPhotoFile = null },
+                            )
                         }
                     }
                 }

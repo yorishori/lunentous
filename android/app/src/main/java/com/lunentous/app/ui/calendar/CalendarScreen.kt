@@ -31,6 +31,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -52,21 +53,29 @@ import com.lunentous.app.ui.components.ConfirmDialog
 import com.lunentous.app.ui.icons.iconFor
 import com.lunentous.app.ui.plant.TimelineEntryFormSheet
 import com.lunentous.app.ui.theme.LunentousExtendedTheme
+import java.io.File
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
 private sealed interface EntrySheetTarget {
-    data class Create(val initialDate: String?) : EntrySheetTarget
+    data class Create(val initialDate: String?, val initialPhoto: File? = null) : EntrySheetTarget
     data class Edit(val event: TimelineEventWithPhotos) : EntrySheetTarget
 }
 
 /** Mirrors web/src/pages/Calendar.tsx, adapted to mobile: day-click shows a
  * detail panel (phases + entries) rather than an inline create form --
  * creation only ever happens via the top "New entry" button, per the
- * Android plan. */
+ * Android plan.
+ *
+ * sharedPhotoFile arrives from a share-to-app intent (see
+ * ui/nav/DeepLinkTarget.ShareImage, imported to a durable File by
+ * MainScaffold before this screen ever sees it) -- when present, opens the
+ * new-entry sheet immediately with that photo pre-attached rather than
+ * waiting for the user to tap "New entry" themselves.
+ */
 @Composable
-fun CalendarScreen(container: AppContainer) {
+fun CalendarScreen(container: AppContainer, sharedPhotoFile: File? = null, onSharedPhotoConsumed: () -> Unit = {}) {
     val viewModel: CalendarViewModel = viewModel(factory = viewModelFactory { initializer { CalendarViewModel(container) } })
     val uiState by viewModel.uiState.collectAsState()
     val selectedPlantIds by viewModel.selectedPlantLocalIds.collectAsState()
@@ -75,6 +84,13 @@ fun CalendarScreen(container: AppContainer) {
 
     var entryTarget by remember { mutableStateOf<EntrySheetTarget?>(null) }
     var deletingEvent by remember { mutableStateOf<TimelineEventWithPhotos?>(null) }
+
+    LaunchedEffect(sharedPhotoFile) {
+        sharedPhotoFile?.let { file ->
+            entryTarget = EntrySheetTarget.Create(initialDate = null, initialPhoto = file)
+            onSharedPhotoConsumed()
+        }
+    }
 
     Scaffold(
         floatingActionButton = {
@@ -151,6 +167,7 @@ fun CalendarScreen(container: AppContainer) {
             existing = existing,
             plants = if (existing == null) uiState.allPlants else emptyList(),
             initialDate = (target as? EntrySheetTarget.Create)?.initialDate,
+            initialPhotos = listOfNotNull((target as? EntrySheetTarget.Create)?.initialPhoto),
             baseUrl = baseUrl,
             isSaving = viewModel.isSavingEntry,
             error = viewModel.entryError,

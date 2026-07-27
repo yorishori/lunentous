@@ -75,6 +75,7 @@ fun TimelineEntryFormSheet(
     plants: List<PlantEntity> = emptyList(),
     fixedPlantLocalId: Long? = null,
     initialDate: String? = null,
+    initialPhotos: List<File> = emptyList(),
     baseUrl: String? = null,
     isSaving: Boolean,
     error: String?,
@@ -95,7 +96,7 @@ fun TimelineEntryFormSheet(
         mutableStateOf(existing?.event?.plantLocalId ?: fixedPlantLocalId ?: plants.firstOrNull()?.localId ?: 0L)
     }
     var text by remember { mutableStateOf(existing?.event?.text ?: "") }
-    var pendingPhotos by remember { mutableStateOf<List<File>>(emptyList()) }
+    var pendingPhotos by remember { mutableStateOf(initialPhotos) }
 
     val takePhoto = rememberCameraCaptureLauncher { file ->
         if (existing != null && onAppendPhotos != null) {
