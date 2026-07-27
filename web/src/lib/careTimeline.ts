@@ -62,6 +62,11 @@ export function buildWeeks(windowStart: Date, windowEndInclusive: Date): WeekInf
   return weeks;
 }
 
+function toEpochDay(dateIso: ISODate): number {
+  const [y, m, d] = dateIso.split("-").map(Number);
+  return Date.UTC(y, m - 1, d) / 86_400_000;
+}
+
 function weekIndexForIsoDate(dateIso: ISODate, weeks: WeekInfo[]): number {
   for (let i = weeks.length - 1; i >= 0; i--) {
     if (dateIso >= weeks[i].startDate) return weeks[i].index;
@@ -125,6 +130,12 @@ export function buildCareTimeline(input: CareTimelineInput): CareTimelineData {
 
   const events: CareEvent[] = [];
   const pointActivitiesById = new Map<string, CareActivity>();
+  // projectOccurrencesInRange's own default cap (500 iterations) was sized
+  // for a short window -- a daily-interval reminder over a multi-year
+  // window needs up to one iteration per day, so this is sized to the
+  // window's actual day-span (with slack) instead, or nothing near the
+  // end of a long window would silently go unprojected.
+  const windowSpanDays = Math.round((toEpochDay(windowEnd) - toEpochDay(windowStart))) + 50;
   for (const state of reminderStates) {
     if (!state.due_date) continue;
     const plant = plantsById.get(state.plant_id);
@@ -141,7 +152,7 @@ export function buildCareTimeline(input: CareTimelineInput): CareTimelineData {
     }
     const rule = (rulesByPlantId.get(state.plant_id) ?? []).find((r) => r.reminder_type_id === state.reminder_type_id);
     const occurrences = rule
-      ? projectOccurrencesInRange(state.due_date, rule.default_interval_days, rule.override_periods, windowStart, windowEnd)
+      ? projectOccurrencesInRange(state.due_date, rule.default_interval_days, rule.override_periods, windowStart, windowEnd, windowSpanDays)
       : state.due_date >= windowStart && state.due_date <= windowEnd
         ? [state.due_date]
         : [];
