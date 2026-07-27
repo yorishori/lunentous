@@ -32,12 +32,15 @@ import com.lunentous.app.ui.plant.PlantDetailScreen
 import com.lunentous.app.ui.plant.PlantFormSheet
 import com.lunentous.app.ui.plant.PlantFormTarget
 import com.lunentous.app.ui.settings.SettingsScreen
+import com.lunentous.app.ui.sync.SyncIssuesScreen
+import com.lunentous.app.ui.sync.SyncStatusBar
 import com.lunentous.app.ui.types.PhaseTypesScreen
 import com.lunentous.app.ui.types.ReminderTypesScreen
 
 private const val PLANT_LOCAL_ID_ARG = "plantLocalId"
 private const val PLANT_DETAIL_ROUTE = "plant_detail/{$PLANT_LOCAL_ID_ARG}"
 private fun plantDetailRoute(plantLocalId: Long) = "plant_detail/$plantLocalId"
+private const val SYNC_ISSUES_ROUTE = "sync_issues"
 
 /**
  * Adaptive shell: bottom NavigationBar (icons only) in portrait, side
@@ -70,6 +73,13 @@ fun MainScaffold(container: AppContainer) {
 
         Scaffold(
             modifier = Modifier.weight(1f),
+            topBar = {
+                SyncStatusBar(
+                    container = container,
+                    onOpenSyncIssues = { navController.navigate(SYNC_ISSUES_ROUTE) },
+                    onOpenSettings = { navigateTo(navController, NavDestination.Settings) },
+                )
+            },
             bottomBar = {
                 if (!isLandscape) {
                     NavigationBar {
@@ -116,6 +126,10 @@ fun MainScaffold(container: AppContainer) {
                         onBack = { navController.popBackStack() },
                         onEdit = { plant -> plantFormTarget = PlantFormTarget.Edit(plant) },
                     )
+                }
+
+                composable(SYNC_ISSUES_ROUTE) {
+                    SyncIssuesScreen(container = container, onBack = { navController.popBackStack() })
                 }
             }
         }

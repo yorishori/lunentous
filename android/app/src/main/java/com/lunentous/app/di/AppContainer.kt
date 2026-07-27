@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.lunentous.app.data.auth.SessionStore
 import com.lunentous.app.data.local.LunentousDatabase
 import com.lunentous.app.data.local.entity.OutboxEntityType
+import com.lunentous.app.data.remote.ConnectivityObserver
 import com.lunentous.app.data.remote.NetworkModule
 import com.lunentous.app.data.repository.AccountRepository
 import com.lunentous.app.data.repository.PhaseTypeRepository
@@ -26,6 +27,7 @@ import com.lunentous.app.data.sync.outbox.OutboxRepository
  */
 class AppContainer(context: Context) {
     val sessionStore = SessionStore(context)
+    val connectivityObserver = ConnectivityObserver(context.applicationContext)
 
     private val database = Room.databaseBuilder(
         context.applicationContext,
