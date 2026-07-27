@@ -1,0 +1,37 @@
+<!-- Static shortcuts (long-press the launcher icon), per the Android plan's
+     native-additions list. Each intent lands on MainActivity with the same
+     EXTRA_DESTINATION extra a widget tap or notification uses, parsed by
+     ui/nav/DeepLinkTarget.kt, so there's no separate deep-link path just
+     for this. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="new_entry"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_new_entry"
+        android:shortcutShortLabel="@string/shortcut_new_entry_short_label"
+        android:shortcutLongLabel="@string/shortcut_new_entry_long_label">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.lunentous.app"
+            android:targetClass="com.lunentous.app.MainActivity">
+            <extra
+                android:name="com.lunentous.app.extra.DESTINATION"
+                android:value="new_entry" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:shortcutId="calendar"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_calendar"
+        android:shortcutShortLabel="@string/shortcut_calendar_short_label"
+        android:shortcutLongLabel="@string/shortcut_calendar_long_label">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.lunentous.app"
+            android:targetClass="com.lunentous.app.MainActivity">
+            <extra
+                android:name="com.lunentous.app.extra.DESTINATION"
+                android:value="calendar" />
+        </intent>
+    </shortcut>
+</shortcuts>

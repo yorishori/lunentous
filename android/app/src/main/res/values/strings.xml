@@ -2,4 +2,9 @@
     <string name="app_name">Lunentous</string>
     <string name="notification_channel_reminders_name">Care reminders</string>
     <string name="notification_channel_reminders_description">Due and overdue plant care reminders</string>
+
+    <string name="shortcut_new_entry_short_label">New entry</string>
+    <string name="shortcut_new_entry_long_label">Log a new entry</string>
+    <string name="shortcut_calendar_short_label">Calendar</string>
+    <string name="shortcut_calendar_long_label">Open calendar</string>
 </resources>
