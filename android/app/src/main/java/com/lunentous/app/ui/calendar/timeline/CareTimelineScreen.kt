@@ -63,13 +63,14 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import kotlinx.coroutines.launch
 
-private val WEEK_WIDTH = 30.dp
-private val LABEL_WIDTH = 96.dp
-private val RANGE_STRIP_HEIGHT = 18.dp
-private val POINT_STRIP_HEIGHT = 16.dp
-private val PLANT_ROW_HEIGHT = RANGE_STRIP_HEIGHT + POINT_STRIP_HEIGHT + 4.dp
-private val MONTH_HEADER_HEIGHT = 22.dp
-private val WEEK_TICK_HEIGHT = 18.dp
+private val WEEK_WIDTH = 36.dp
+private val LABEL_WIDTH = 104.dp
+private val RANGE_STRIP_HEIGHT = 20.dp
+private val POINT_STRIP_HEIGHT = 18.dp
+private val ROW_GAP = 6.dp
+private val PLANT_ROW_HEIGHT = RANGE_STRIP_HEIGHT + POINT_STRIP_HEIGHT + 6.dp
+private val MONTH_HEADER_HEIGHT = 26.dp
+private val WEEK_TICK_HEIGHT = 22.dp
 private const val SCROLL_PAGE_WEEKS = 4
 
 private data class EntryTarget(val initialPhoto: File? = null)
@@ -142,20 +143,35 @@ fun CareTimelineScreen(
                         }
                     }
                 }
-                LegendRow(uiState.activities, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+                LegendRow(uiState.activities, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
 
                 // No horizontal padding here -- this row is meant to use
                 // the full screen width, unlike the text/legend above it.
-                Row(modifier = Modifier.weight(1f)) {
+                // fillMaxWidth() (not just weight(1f)) on the outer Row
+                // makes sure it actually claims the full remaining width
+                // rather than only as much as its content needs.
+                Row(modifier = Modifier.fillMaxWidth().weight(1f).padding(vertical = 6.dp)) {
                     LabelColumn(uiState.allPlants)
-                    TimelineGrid(
-                        uiState = uiState,
-                        scrollState = scrollState,
-                        activitiesById = activitiesById,
-                        selectedWeek = viewModel.selectedWeek,
-                        onSelectWeek = viewModel::selectWeek,
-                        modifier = Modifier.weight(1f),
-                    )
+                    // The scrollable content lives in its own Box rather
+                    // than putting weight() and horizontalScroll() on the
+                    // same node -- combining them directly on one
+                    // Column/Row is a known source of Compose layout bugs
+                    // where the scroll viewport ends up sized by its own
+                    // unconstrained content instead of the weight-assigned
+                    // available width, breaking both "fill remaining
+                    // width" and scroll-by-button (nothing to animate to
+                    // if the viewport already claims its full content
+                    // width). The Box gets the width constraint; the
+                    // Column inside just scrolls within it.
+                    Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                        TimelineGrid(
+                            uiState = uiState,
+                            scrollState = scrollState,
+                            activitiesById = activitiesById,
+                            selectedWeek = viewModel.selectedWeek,
+                            onSelectWeek = viewModel::selectWeek,
+                        )
+                    }
                 }
 
                 DetailPanel(uiState = uiState, selectedWeek = viewModel.selectedWeek, modifier = Modifier.fillMaxWidth().padding(16.dp))
@@ -197,7 +213,11 @@ private fun LegendRow(activities: List<CareActivity>, modifier: Modifier = Modif
 @Composable
 private fun LabelColumn(plants: List<PlantEntity>) {
     val colors = LunentousExtendedTheme.colors
-    Column(modifier = Modifier.width(LABEL_WIDTH)) {
+    // Same vertical arrangement as TimelineGrid's Column, and the same
+    // number of children in the same order (header spacer, one per plant,
+    // tick spacer) -- that's what keeps each plant's label lined up with
+    // its row in the scrollable grid.
+    Column(modifier = Modifier.width(LABEL_WIDTH), verticalArrangement = Arrangement.spacedBy(ROW_GAP)) {
         Box(Modifier.fillMaxWidth().size(width = LABEL_WIDTH, height = MONTH_HEADER_HEIGHT))
         plants.forEach { plant ->
             Box(Modifier.fillMaxWidth().size(width = LABEL_WIDTH, height = PLANT_ROW_HEIGHT), contentAlignment = Alignment.CenterStart) {
@@ -207,6 +227,7 @@ private fun LabelColumn(plants: List<PlantEntity>) {
                     color = colors.text,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(start = 4.dp),
                 )
             }
         }
@@ -221,10 +242,9 @@ private fun TimelineGrid(
     activitiesById: Map<String, CareActivity>,
     selectedWeek: Int,
     onSelectWeek: (Int) -> Unit,
-    modifier: Modifier = Modifier,
 ) {
     val today = remember { LocalDate.now() }
-    Column(modifier = modifier.horizontalScroll(scrollState)) {
+    Column(modifier = Modifier.horizontalScroll(scrollState), verticalArrangement = Arrangement.spacedBy(ROW_GAP)) {
         MonthHeaderRow(uiState.weeks, selectedWeek, onSelectWeek)
         uiState.allPlants.forEach { plant ->
             PlantLane(plant, uiState, activitiesById, selectedWeek, onSelectWeek)
@@ -284,7 +304,7 @@ private fun PlantLane(
                     .selectableCell(week.index == selectedWeek)
                     .clickable(onClickLabel = description) { onSelectWeek(week.index) },
             ) {
-                Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Column(Modifier.fillMaxWidth().height(RANGE_STRIP_HEIGHT)) {
                         val shown = activeRangeIds.take(2)
                         val subHeight = if (shown.size > 1) RANGE_STRIP_HEIGHT / 2 else RANGE_STRIP_HEIGHT
@@ -312,7 +332,7 @@ private fun PlantLane(
                     Row(Modifier.fillMaxWidth().height(POINT_STRIP_HEIGHT), horizontalArrangement = Arrangement.Center) {
                         activeEventIds.take(3).forEach { id ->
                             val color = activitiesById[id]?.color ?: Color.Gray
-                            Box(Modifier.padding(horizontal = 1.dp).size(6.dp).clip(CircleShape).background(color))
+                            Box(Modifier.padding(horizontal = 1.5.dp).size(8.dp).clip(CircleShape).background(color))
                         }
                     }
                 }
