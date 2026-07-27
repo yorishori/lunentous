@@ -39,9 +39,9 @@ class AppContainer(context: Context) {
 
     val outboxRepository = OutboxRepository(database.outboxDao(), gson)
 
-    val plantRepository = PlantRepository(database.plantDao(), api, sessionStore)
-    val reminderTypeRepository = ReminderTypeRepository(database.reminderTypeDao(), api, sessionStore)
-    val phaseTypeRepository = PhaseTypeRepository(database.phaseTypeDao(), api, sessionStore)
+    val plantRepository = PlantRepository(database.plantDao(), api, sessionStore, outboxRepository, gson)
+    val reminderTypeRepository = ReminderTypeRepository(database.reminderTypeDao(), api, sessionStore, outboxRepository, gson)
+    val phaseTypeRepository = PhaseTypeRepository(database.phaseTypeDao(), api, sessionStore, outboxRepository, gson)
     val reminderRuleRepository = ReminderRuleRepository(
         database.reminderRuleDao(),
         database.overridePeriodDao(),
