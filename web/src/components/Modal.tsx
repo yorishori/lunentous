@@ -1,5 +1,8 @@
 import { useEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { useMountTransition } from "../lib/useMountTransition";
+
+const EXIT_DURATION = 180;
 
 interface Props {
   open: boolean;
@@ -9,6 +12,8 @@ interface Props {
 }
 
 export default function Modal({ open, title, onClose, children }: Props) {
+  const { shouldRender, closing } = useMountTransition(open, EXIT_DURATION);
+
   useEffect(() => {
     if (!open) return;
     function handleKey(e: KeyboardEvent) {
@@ -22,12 +27,12 @@ export default function Modal({ open, title, onClose, children }: Props) {
     };
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!shouldRender) return null;
 
   return createPortal(
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className={`modal-backdrop${closing ? " closing" : ""}`} onClick={onClose}>
       <div
-        className="modal-box"
+        className={`modal-box${closing ? " closing" : ""}`}
         role="dialog"
         aria-modal="true"
         aria-label={title}

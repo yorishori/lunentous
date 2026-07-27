@@ -1,6 +1,9 @@
 import { useEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
+import { useMountTransition } from "../lib/useMountTransition";
+
+const EXIT_DURATION = 220;
 
 interface Props {
   open: boolean;
@@ -10,6 +13,8 @@ interface Props {
 }
 
 export default function SlideOver({ open, title, onClose, children }: Props) {
+  const { shouldRender, closing } = useMountTransition(open, EXIT_DURATION);
+
   useEffect(() => {
     if (!open) return;
     function handleKey(e: KeyboardEvent) {
@@ -23,12 +28,17 @@ export default function SlideOver({ open, title, onClose, children }: Props) {
     };
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!shouldRender) return null;
 
   return createPortal(
     <>
-      <div className="slideover-backdrop" onClick={onClose} />
-      <div className="slideover-panel" role="dialog" aria-modal="true" aria-label={title}>
+      <div className={`slideover-backdrop${closing ? " closing" : ""}`} onClick={onClose} />
+      <div
+        className={`slideover-panel${closing ? " closing" : ""}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+      >
         <div className="slideover-header">
           <h2>{title}</h2>
           <button type="button" className="btn icon-btn secondary" onClick={onClose} aria-label="Close">

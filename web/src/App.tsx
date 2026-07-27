@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { hasToken } from "./api/client";
 import Nav from "./components/Nav";
 import LoadingBar from "./components/LoadingBar";
@@ -16,6 +16,18 @@ function RequireAuth({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+/** Replays the page fade-in on every navigation -- without a per-route key,
+ * `.app-main` never remounts across routes, so its CSS animation would only
+ * ever play once on first load. */
+function PageTransition({ children }: { children: ReactNode }) {
+  const location = useLocation();
+  return (
+    <div className="page-transition" key={location.pathname}>
+      {children}
+    </div>
+  );
+}
+
 export default function App() {
   return (
     <>
@@ -29,15 +41,17 @@ export default function App() {
               <div className="app-shell">
                 <Nav />
                 <main className="app-main">
-                  <Routes>
-                    <Route path="/" element={<Dashboard />} />
-                    <Route path="/plants/new" element={<PlantDetail />} />
-                    <Route path="/plants/:id" element={<PlantDetail />} />
-                    <Route path="/calendar" element={<Calendar />} />
-                    <Route path="/reminder-types" element={<ReminderTypesSettings />} />
-                    <Route path="/phase-types" element={<PhaseTypesSettings />} />
-                    <Route path="/settings" element={<SettingsPage />} />
-                  </Routes>
+                  <PageTransition>
+                    <Routes>
+                      <Route path="/" element={<Dashboard />} />
+                      <Route path="/plants/new" element={<PlantDetail />} />
+                      <Route path="/plants/:id" element={<PlantDetail />} />
+                      <Route path="/calendar" element={<Calendar />} />
+                      <Route path="/reminder-types" element={<ReminderTypesSettings />} />
+                      <Route path="/phase-types" element={<PhaseTypesSettings />} />
+                      <Route path="/settings" element={<SettingsPage />} />
+                    </Routes>
+                  </PageTransition>
                 </main>
               </div>
             </RequireAuth>

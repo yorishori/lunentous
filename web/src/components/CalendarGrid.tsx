@@ -5,11 +5,10 @@ export interface CalendarMarker {
   label: string;
   kind: "due" | "projected" | "logged";
   color?: string;
-  onClick: () => void;
 }
 
 export interface PhaseBand {
-  color: string;
+  color: string | null;
   label: string;
 }
 
@@ -18,6 +17,7 @@ interface Props {
   month: number; // 1-12
   markersByDate: Map<string, CalendarMarker[]>;
   phaseBandsByDate: Map<string, PhaseBand[]>;
+  selectedDay: string | null;
   onDayClick: (dateIso: string) => void;
 }
 
@@ -49,7 +49,7 @@ function markerStyle(marker: CalendarMarker): CSSProperties {
   };
 }
 
-export default function CalendarGrid({ year, month, markersByDate, phaseBandsByDate, onDayClick }: Props) {
+export default function CalendarGrid({ year, month, markersByDate, phaseBandsByDate, selectedDay, onDayClick }: Props) {
   const firstDay = new Date(year, month - 1, 1);
   const daysInMonth = new Date(year, month, 0).getDate();
   const startWeekday = firstDay.getDay();
@@ -74,10 +74,11 @@ export default function CalendarGrid({ year, month, markersByDate, phaseBandsByD
         const markers = markersByDate.get(iso) ?? [];
         const bands = phaseBandsByDate.get(iso) ?? [];
         const isToday = iso === todayIso;
+        const isSelected = iso === selectedDay;
         return (
           <div
             key={i}
-            className="calendar-day-cell"
+            className={`calendar-day-cell${isSelected ? " selected" : ""}`}
             onClick={() => onDayClick(iso)}
             title={bands.length > 0 ? bands.map((b) => b.label).join(", ") : undefined}
             style={{
@@ -93,12 +94,7 @@ export default function CalendarGrid({ year, month, markersByDate, phaseBandsByD
             {markers.map((m) => (
               <div
                 key={m.key}
-                className="calendar-marker"
                 title={m.label}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  m.onClick();
-                }}
                 style={{
                   fontSize: "0.7rem",
                   marginTop: "0.15rem",
@@ -114,7 +110,7 @@ export default function CalendarGrid({ year, month, markersByDate, phaseBandsByD
               </div>
             ))}
             {bands.slice(0, 1).map((b, idx) => (
-              <div key={idx} className="calendar-phase-band" style={{ background: b.color }} />
+              <div key={idx} className="calendar-phase-band" style={{ background: b.color ?? "var(--accent)" }} />
             ))}
           </div>
         );

@@ -11,6 +11,7 @@ import ConfirmDialog from "../components/ConfirmDialog";
 import TimelineEntryForm from "../components/TimelineEntryForm";
 import TypeBadge from "../components/TypeBadge";
 import { useToast } from "../components/Toast";
+import { getIcon } from "../lib/icons";
 
 function pad(n: number): string {
   return String(n).padStart(2, "0");
@@ -20,9 +21,9 @@ interface GlobalReminderState extends ReminderState {
   plant_name: string;
 }
 
-type SelectedItem =
-  | { kind: "due" | "projected"; plantName: string; reminderTypeName: string; date: string }
-  | { kind: "logged"; plantName: string; event: TimelineEvent };
+type DayDetailItem =
+  | { kind: "due" | "projected"; plantName: string; reminderTypeName: string; color?: string; icon?: string | null }
+  | { kind: "logged"; plantName: string; event: TimelineEvent; typeName?: string; color?: string | null };
 
 export default function Calendar() {
   const queryClient = useQueryClient();
@@ -31,9 +32,8 @@ export default function Calendar() {
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth() + 1);
   const [selectedPlantIds, setSelectedPlantIds] = useState<number[]>([]);
-  const [selected, setSelected] = useState<SelectedItem | null>(null);
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
-  const [createDate, setCreateDate] = useState<string | undefined>(undefined);
   const [editingEvent, setEditingEvent] = useState<TimelineEvent | null>(null);
   const [deletingEvent, setDeletingEvent] = useState<TimelineEvent | null>(null);
 
@@ -89,6 +89,7 @@ export default function Calendar() {
 
   const markersByDate = new Map<string, CalendarMarker[]>();
   const phaseBandsByDate = new Map<string, PhaseBand[]>();
+  const dayDetailsByDate = new Map<string, DayDetailItem[]>();
 
   function addMarker(date: string, marker: CalendarMarker) {
     const list = markersByDate.get(date) ?? [];
@@ -100,6 +101,12 @@ export default function Calendar() {
     const list = phaseBandsByDate.get(date) ?? [];
     list.push(band);
     phaseBandsByDate.set(date, list);
+  }
+
+  function addDayDetail(date: string, item: DayDetailItem) {
+    const list = dayDetailsByDate.get(date) ?? [];
+    list.push(item);
+    dayDetailsByDate.set(date, list);
   }
 
   // Reminder due dates + projected future occurrences (spec §6)
@@ -115,18 +122,19 @@ export default function Calendar() {
 
     for (const date of occurrences) {
       const isActualDue = date === state.due_date;
+      const kind = isActualDue ? "due" : "projected";
       addMarker(date, {
         key: `state-${state.id}-${date}`,
         label: `${state.plant_name}: ${state.reminder_type_name}`,
-        kind: isActualDue ? "due" : "projected",
+        kind,
         color: state.reminder_type_color,
-        onClick: () =>
-          setSelected({
-            kind: isActualDue ? "due" : "projected",
-            plantName: state.plant_name,
-            reminderTypeName: state.reminder_type_name ?? "",
-            date,
-          }),
+      });
+      addDayDetail(date, {
+        kind,
+        plantName: state.plant_name,
+        reminderTypeName: state.reminder_type_name ?? "",
+        color: state.reminder_type_color,
+        icon: state.reminder_type_icon,
       });
     }
   }
@@ -139,7 +147,7 @@ export default function Calendar() {
       for (const w of windows) {
         if (dateInRange(iso, w.start_month, w.start_day, w.end_month, w.end_day)) {
           addPhaseBand(iso, {
-            color: w.phase_type_color ?? "var(--accent)",
+            color: w.phase_type_color ?? null,
             label: `${p.name}: ${w.phase_type_name}`,
           });
         }
@@ -157,7 +165,13 @@ export default function Calendar() {
         label: `${p.name}: ${type?.name ?? "Note"}`,
         kind: "logged",
         color: type?.color ?? undefined,
-        onClick: () => setSelected({ kind: "logged", plantName: p.name, event }),
+      });
+      addDayDetail(event.event_date, {
+        kind: "logged",
+        plantName: p.name,
+        event,
+        typeName: type?.name,
+        color: type?.color,
       });
     }
   });
@@ -169,7 +183,6 @@ export default function Calendar() {
       queryClient.invalidateQueries({ queryKey: ["reminder-states"] });
       showToast("Timeline entry deleted", "success");
       setDeletingEvent(null);
-      setSelected(null);
     },
     onError: (err) => showToast((err as ApiError).message ?? "Failed to delete entry", "error"),
   });
@@ -181,7 +194,7 @@ export default function Calendar() {
     } else {
       setViewMonth((m) => m - 1);
     }
-    setSelected(null);
+    setSelectedDay(null);
   }
 
   function nextMonth() {
@@ -191,8 +204,21 @@ export default function Calendar() {
     } else {
       setViewMonth((m) => m + 1);
     }
-    setSelected(null);
+    setSelectedDay(null);
   }
+
+  function formatLongDate(iso: string): string {
+    const [y, m, d] = iso.split("-").map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  }
+
+  const selectedPhases = selectedDay ? (phaseBandsByDate.get(selectedDay) ?? []) : [];
+  const selectedEntries = selectedDay ? (dayDetailsByDate.get(selectedDay) ?? []) : [];
 
   return (
     <div>
@@ -204,14 +230,7 @@ export default function Calendar() {
             selected={selectedPlantIds}
             onChange={setSelectedPlantIds}
           />
-          <button
-            type="button"
-            className="btn"
-            onClick={() => {
-              setCreateDate(undefined);
-              setCreateOpen(true);
-            }}
-          >
+          <button type="button" className="btn" onClick={() => setCreateOpen(true)}>
             <Plus size={16} /> New entry
           </button>
         </div>
@@ -229,7 +248,7 @@ export default function Calendar() {
 
       <p style={{ color: "var(--text-muted)", marginTop: 0, textAlign: "center" }}>
         Solid markers are scheduled due dates, dashed are projected future occurrences, and bordered markers are
-        logged entries. Click a day to add an entry, or click a marker for details.
+        logged entries. Click a day to see its phases and entries below.
       </p>
 
       <CalendarGrid
@@ -237,70 +256,107 @@ export default function Calendar() {
         month={viewMonth}
         markersByDate={markersByDate}
         phaseBandsByDate={phaseBandsByDate}
-        onDayClick={(date) => {
-          setCreateDate(date);
-          setCreateOpen(true);
-        }}
+        selectedDay={selectedDay}
+        onDayClick={(date) => setSelectedDay((prev) => (prev === date ? null : date))}
       />
 
-      {selected && (
-        <div className="calendar-detail-panel card">
-          {selected.kind === "logged" ? (
-            <>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "1rem" }}>
-                <div>
-                  <strong>{selected.plantName}</strong> · {selected.event.event_date}
-                  {selected.event.reminder_type_id != null &&
-                    (() => {
-                      const type = reminderTypesQuery.data?.find((t) => t.id === selected.event.reminder_type_id);
-                      return (
-                        <span style={{ marginLeft: "0.5rem", display: "inline-block" }}>
-                          <TypeBadge name={type?.name ?? "Unknown"} color={type?.color} />
-                        </span>
-                      );
-                    })()}
-                </div>
-                <div style={{ display: "flex", gap: "0.4rem", flexShrink: 0 }}>
-                  <button
-                    type="button"
-                    className="btn icon-btn secondary icon-btn-edit"
-                    onClick={() => setEditingEvent(selected.event)}
-                    aria-label="Edit entry"
-                  >
-                    <Pencil size={15} />
-                  </button>
-                  <button
-                    type="button"
-                    className="btn icon-btn secondary icon-btn-delete"
-                    onClick={() => setDeletingEvent(selected.event)}
-                    aria-label="Delete entry"
-                  >
-                    <Trash2 size={15} />
-                  </button>
-                </div>
-              </div>
-              {selected.event.text && <p style={{ marginBottom: 0 }}>{selected.event.text}</p>}
-              {selected.event.photos.length > 0 && (
-                <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginTop: "0.75rem" }}>
-                  {selected.event.photos.map((p) => (
-                    <img
-                      key={p.id}
-                      src={`/photos/${p.file_path}`}
-                      alt=""
-                      style={{ width: 90, height: 90, objectFit: "cover", borderRadius: "10px" }}
-                    />
-                  ))}
-                </div>
-              )}
-            </>
-          ) : (
-            <div>
-              <strong>{selected.plantName}</strong> · {selected.reminderTypeName}
-              <div style={{ color: "var(--text-muted)", fontSize: "0.85rem", marginTop: "0.25rem" }}>
-                {selected.date} — {selected.kind === "due" ? "Scheduled" : "Projected (assumes on-time completion)"}
+      {selectedDay && (
+        <div className="calendar-detail-panel">
+          <h3 style={{ marginBottom: "0.75rem" }}>{formatLongDate(selectedDay)}</h3>
+
+          {selectedPhases.length > 0 && (
+            <div style={{ marginBottom: "1.1rem" }}>
+              <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: "0.4rem" }}>Active phases</div>
+              <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
+                {selectedPhases.map((b, i) => (
+                  <TypeBadge key={i} name={b.label} color={b.color} />
+                ))}
               </div>
             </div>
           )}
+
+          <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: "0.5rem" }}>Entries</div>
+          {selectedEntries.length === 0 && <p style={{ color: "var(--text-muted)" }}>Nothing for this day.</p>}
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            {selectedEntries.map((item, i) =>
+              item.kind === "logged" ? (
+                <div key={i} className="card">
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "1rem" }}>
+                    <div>
+                      <strong>{item.plantName}</strong>
+                      {item.typeName && (
+                        <span style={{ marginLeft: "0.5rem", display: "inline-block" }}>
+                          <TypeBadge name={item.typeName} color={item.color} />
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display: "flex", gap: "0.4rem", flexShrink: 0 }}>
+                      <button
+                        type="button"
+                        className="btn icon-btn secondary icon-btn-edit"
+                        onClick={() => setEditingEvent(item.event)}
+                        aria-label="Edit entry"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        className="btn icon-btn secondary icon-btn-delete"
+                        onClick={() => setDeletingEvent(item.event)}
+                        aria-label="Delete entry"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                  {item.event.text && <p style={{ marginBottom: 0, marginTop: "0.5rem" }}>{item.event.text}</p>}
+                  {item.event.photos.length > 0 && (
+                    <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginTop: "0.6rem" }}>
+                      {item.event.photos.map((p) => (
+                        <img
+                          key={p.id}
+                          src={`/photos/${p.file_path}`}
+                          alt=""
+                          style={{ width: 80, height: 80, objectFit: "cover", borderRadius: "8px" }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div key={i} className="item-row" style={{ cursor: "default" }}>
+                  <div className="item-row-main">
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        width: "2rem",
+                        height: "2rem",
+                        borderRadius: "999px",
+                        background: item.color ? `${item.color}29` : "var(--accent-soft)",
+                        color: item.color ?? "var(--accent)",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                      }}
+                    >
+                      {(() => {
+                        const Icon = getIcon(item.icon);
+                        return Icon ? <Icon size={16} /> : null;
+                      })()}
+                    </span>
+                    <div>
+                      <div style={{ fontWeight: 600 }}>
+                        {item.plantName} — {item.reminderTypeName}
+                      </div>
+                      <div style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
+                        {item.kind === "due" ? "Scheduled" : "Projected (assumes on-time completion)"}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )
+            )}
+          </div>
         </div>
       )}
 
@@ -308,7 +364,7 @@ export default function Calendar() {
         <TimelineEntryForm
           plants={allPlants}
           reminderTypes={reminderTypesQuery.data ?? []}
-          initialDate={createDate}
+          initialDate={selectedDay ?? undefined}
           onDone={() => setCreateOpen(false)}
         />
       </Modal>
@@ -318,10 +374,7 @@ export default function Calendar() {
           <TimelineEntryForm
             reminderTypes={reminderTypesQuery.data ?? []}
             existingEvent={editingEvent}
-            onDone={() => {
-              setEditingEvent(null);
-              setSelected(null);
-            }}
+            onDone={() => setEditingEvent(null)}
           />
         )}
       </Modal>
