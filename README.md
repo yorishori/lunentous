@@ -69,13 +69,38 @@ increasingly overdue until you log it.
 Lunentous is protected by a single kind of credential: a bearer API key,
 checked on every `/api/*` request except `/api/health`. There's
 deliberately no signup/login form backed by a database of accounts — mint
-a key with the CLI script above, and from then on you can create or revoke
+a key with the CLI script, and from then on you can create or revoke
 additional labeled keys from the Settings page in the app (useful for
 giving a phone or another device its own key you can revoke independently).
 
 The CLI is the *only* way to mint the first key. That's intentional: it
 avoids ever exposing an unauthenticated "create a key" HTTP endpoint on a
 service you're about to expose to your network.
+
+**Docker container** (the container already has to be running — `docker
+compose up -d`):
+
+```bash
+docker compose exec lunentous node dist/cli/create-api-key.js --label "web"
+```
+
+If it isn't running yet, this also works as a one-off using the same image
+and volumes, without starting the full service:
+
+```bash
+docker compose run --rm lunentous node dist/cli/create-api-key.js --label "web"
+```
+
+**Local (non-Docker) deployment** — run from `server/`, after `npm run
+build`:
+
+```bash
+cd server
+npm run cli:create-api-key -- --label "web"
+```
+
+Either way, the token is printed once — copy it and paste it into the
+login screen.
 
 ## Deployment
 
