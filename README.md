@@ -176,6 +176,12 @@ cd web && npm install && npm run dev
 Vite proxies `/api` to `http://localhost:8080` in dev, so both halves talk
 to each other without any extra configuration.
 
+### Android
+
+`android/` has an early toolchain scaffold (no working app yet) — see
+[android/README.md](./android/README.md) for setup, which doesn't require
+Android Studio or root access.
+
 ## Stack
 
 Node + TypeScript + Fastify + better-sqlite3 on the backend; React + Vite +

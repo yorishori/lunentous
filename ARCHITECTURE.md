@@ -409,13 +409,21 @@ made stale (not just the obvious one), and call `showToast()` in both
 `onSuccess` and `onError` — this is the established convention across every
 existing mutation in the codebase, not an exception.
 
+## Android
+
+`android/` has an initial toolchain scaffold — Gradle wrapper, AGP/Kotlin/
+Compose set up, one placeholder screen that proves the build compiles — but
+no real app yet. See `android/README.md` for the (sudo-free) toolchain setup
+and how to build/install on a physical device. Screens, navigation, and the
+Retrofit client against the API surface documented above are still to come.
+
+The original spec's design for this app was on-device `WorkManager` polling
+using `reminder_states.notified`; the `notified` column and the
+`?due_before_or_on=&notified=` query support on `/api/reminder-states`
+exist for that use case but are unused by the web app.
+
 ## Not built
 
-- **Android app** — the original spec described one (Kotlin/Compose,
-  on-device WorkManager polling using `reminder_states.notified`); it was
-  explicitly descoped and never started. The `notified` column and the
-  `?due_before_or_on=&notified=` query support on `/api/reminder-states`
-  exist for this use case but are unused by the web app.
 - **Automated tests** — none exist. Changes have been verified by `tsc`
   (via the Docker build, which fails on type errors in either package) and
   manual `curl`/browser testing.

@@ -8,3 +8,13 @@ server/data/photos/*
 *.log
 .env
 .DS_Store
+
+# Android (see android/README.md for toolchain setup)
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+android/*.iml
+android/captures/
+android/.cxx/
