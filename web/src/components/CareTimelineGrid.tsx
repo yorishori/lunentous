@@ -1,34 +1,50 @@
+import type { RefObject } from "react";
 import { CalendarRange } from "lucide-react";
 import { getIcon } from "../lib/icons";
+import type { Plant } from "../api/types";
 import type { CareActivity, CareEvent, SeasonRange, WeekInfo } from "../lib/careTimeline";
 
-const WEEK_WIDTH_REM = 1.9;
-const WEEK_WIDTH = `${WEEK_WIDTH_REM}rem`;
-const LABEL_WIDTH = "6.5rem";
-const LANE_HEIGHT = "2.1rem";
-const MONTH_HEADER_HEIGHT = "1.4rem";
-const WEEK_TICK_HEIGHT = "1.2rem";
+const WEEK_WIDTH_REM = 2.3;
+const LABEL_WIDTH = "7.5rem";
+const RANGE_STRIP_REM = 1.15;
+const POINT_STRIP_REM = 1.05;
+const ROW_GAP_REM = 0.4;
+const PLANT_ROW_HEIGHT_REM = RANGE_STRIP_REM + POINT_STRIP_REM + 0.3;
+const MONTH_HEADER_HEIGHT = "1.7rem";
+const WEEK_TICK_HEIGHT = "1.4rem";
 
 interface Props {
   weeks: WeekInfo[];
   activities: CareActivity[];
+  plants: Plant[];
   ranges: SeasonRange[];
   events: CareEvent[];
   selectedWeek: number;
   onSelectWeek: (index: number) => void;
+  scrollContainerRef: RefObject<HTMLDivElement>;
 }
 
-/** Legend + sticky label column + one shared horizontally-scrolled grid
- * (month header, one lane per activity, a week-tick row) -- mirrors the
- * Android app's CareTimelineScreen.kt. Every row in the scrollable half
- * shares one ref'd scroll container rather than independent scroll state,
- * so they stay in lockstep with no extra sync code needed. */
-export default function CareTimelineGrid({ weeks, activities, ranges, events, selectedWeek, onSelectWeek }: Props) {
+/**
+ * Rows are plants, columns are weeks (grouped by month) -- mirrors the
+ * Android app's CareTimelineScreen.kt. Each plant's row combines its own
+ * phase-window range pills (top strip, up to 2 concurrent types stacked)
+ * and reminder point dots (bottom strip); the legend above decodes which
+ * color/icon belongs to which activity type, since the row label is now
+ * the plant rather than the activity.
+ *
+ * The label column and the scrollable grid share the exact same
+ * `gap`/row sequence (header spacer, one row per plant, tick spacer) so
+ * they stay aligned without any extra sync code.
+ */
+export default function CareTimelineGrid({ weeks, activities, plants, ranges, events, selectedWeek, onSelectWeek, scrollContainerRef }: Props) {
   const todayIso = new Date().toISOString().slice(0, 10);
+  const rangesByPlant = groupBy(ranges, (r) => r.plantId);
+  const eventsByPlant = groupBy(events, (e) => e.plantId);
+  const activitiesById = new Map(activities.map((a) => [a.id, a]));
 
   return (
     <div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.85rem", marginBottom: "0.75rem" }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.85rem", marginBottom: "0.85rem" }}>
         {activities.map((activity) => (
           <div key={activity.id} style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
             <span style={{ display: "inline-block", width: "0.5rem", height: "0.5rem", borderRadius: "999px", background: activity.color }} />
@@ -37,14 +53,14 @@ export default function CareTimelineGrid({ weeks, activities, ranges, events, se
         ))}
       </div>
 
-      <div style={{ display: "flex" }}>
-        <div style={{ width: LABEL_WIDTH, flexShrink: 0 }}>
+      <div style={{ display: "flex", padding: "0.4rem 0" }}>
+        <div style={{ width: LABEL_WIDTH, flexShrink: 0, display: "flex", flexDirection: "column", gap: `${ROW_GAP_REM}rem` }}>
           <div style={{ height: MONTH_HEADER_HEIGHT }} />
-          {activities.map((activity) => (
+          {plants.map((plant) => (
             <div
-              key={activity.id}
+              key={plant.id}
               style={{
-                height: LANE_HEIGHT,
+                height: `${PLANT_ROW_HEIGHT_REM}rem`,
                 display: "flex",
                 alignItems: "center",
                 fontSize: "0.78rem",
@@ -54,14 +70,14 @@ export default function CareTimelineGrid({ weeks, activities, ranges, events, se
                 paddingRight: "0.5rem",
               }}
             >
-              {activity.label}
+              {plant.name}
             </div>
           ))}
           <div style={{ height: WEEK_TICK_HEIGHT }} />
         </div>
 
-        <div style={{ overflowX: "auto", flex: 1 }}>
-          <div style={{ width: `${weeks.length * WEEK_WIDTH_REM}rem` }}>
+        <div ref={scrollContainerRef} style={{ overflowX: "auto", flex: 1 }}>
+          <div style={{ width: `${weeks.length * WEEK_WIDTH_REM}rem`, display: "flex", flexDirection: "column", gap: `${ROW_GAP_REM}rem` }}>
             {/* Month header row */}
             <div style={{ display: "flex", height: MONTH_HEADER_HEIGHT }}>
               {weeks.map((week) => (
@@ -73,36 +89,61 @@ export default function CareTimelineGrid({ weeks, activities, ranges, events, se
               ))}
             </div>
 
-            {/* Activity lanes */}
-            {activities.map((activity) => {
-              const activeWeeks =
-                activity.kind === "range"
-                  ? new Set(ranges.filter((r) => r.activityId === activity.id).flatMap((r) => rangeSpan(r)))
-                  : null;
-              const eventWeeks = activity.kind === "point" ? new Set(events.filter((e) => e.activityId === activity.id).map((e) => e.week)) : null;
+            {/* Plant rows */}
+            {plants.map((plant) => {
+              const plantRanges = rangesByPlant.get(plant.id) ?? [];
+              const plantEvents = eventsByPlant.get(plant.id) ?? [];
+              const rangeActivityIds = [...new Set(plantRanges.map((r) => r.activityId))];
 
               return (
-                <div key={activity.id} style={{ display: "flex", height: LANE_HEIGHT }}>
+                <div key={plant.id} style={{ display: "flex", height: `${PLANT_ROW_HEIGHT_REM}rem` }}>
                   {weeks.map((week) => {
-                    const active = activity.kind === "range" ? activeWeeks!.has(week.index) : eventWeeks!.has(week.index);
+                    const activeRangeIds = rangeActivityIds.filter((id) =>
+                      plantRanges.some((r) => r.activityId === id && week.index >= r.startWeek && week.index <= r.endWeek)
+                    );
+                    const activeEventIds = [...new Set(plantEvents.filter((e) => e.week === week.index).map((e) => e.activityId))];
+                    const shown = activeRangeIds.slice(0, 2);
+                    const subHeightRem = shown.length > 1 ? RANGE_STRIP_REM / 2 : RANGE_STRIP_REM;
+
                     return (
-                      <WeekCell key={week.index} week={week} selected={week.index === selectedWeek} onSelect={onSelectWeek} height={LANE_HEIGHT}>
-                        {active &&
-                          (activity.kind === "range" ? (
-                            <div
-                              style={{
-                                position: "absolute",
-                                inset: "0.5rem 0",
-                                background: `${activity.color}c0`,
-                                borderTopLeftRadius: activeWeeks!.has(week.index - 1) ? 0 : "999px",
-                                borderBottomLeftRadius: activeWeeks!.has(week.index - 1) ? 0 : "999px",
-                                borderTopRightRadius: activeWeeks!.has(week.index + 1) ? 0 : "999px",
-                                borderBottomRightRadius: activeWeeks!.has(week.index + 1) ? 0 : "999px",
-                              }}
-                            />
-                          ) : (
-                            <span style={{ width: "0.6rem", height: "0.6rem", borderRadius: "999px", background: activity.color }} />
-                          ))}
+                      <WeekCell
+                        key={week.index}
+                        week={week}
+                        selected={week.index === selectedWeek}
+                        onSelect={onSelectWeek}
+                        height={`${PLANT_ROW_HEIGHT_REM}rem`}
+                      >
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.15rem", width: "100%", padding: "0 0.1rem" }}>
+                          <div style={{ height: `${RANGE_STRIP_REM}rem`, display: "flex", flexDirection: "column", gap: "1px" }}>
+                            {shown.map((id) => {
+                              const color = activitiesById.get(id)?.color ?? "#8839ef";
+                              const rangesForType = plantRanges.filter((r) => r.activityId === id);
+                              const roundStart = !rangesForType.some((r) => week.index - 1 >= r.startWeek && week.index - 1 <= r.endWeek);
+                              const roundEnd = !rangesForType.some((r) => week.index + 1 >= r.startWeek && week.index + 1 <= r.endWeek);
+                              return (
+                                <div
+                                  key={id}
+                                  style={{
+                                    height: `${subHeightRem}rem`,
+                                    background: `${color}c0`,
+                                    borderTopLeftRadius: roundStart ? "999px" : 0,
+                                    borderBottomLeftRadius: roundStart ? "999px" : 0,
+                                    borderTopRightRadius: roundEnd ? "999px" : 0,
+                                    borderBottomRightRadius: roundEnd ? "999px" : 0,
+                                  }}
+                                />
+                              );
+                            })}
+                          </div>
+                          <div style={{ height: `${POINT_STRIP_REM}rem`, display: "flex", alignItems: "center", justifyContent: "center", gap: "0.2rem" }}>
+                            {activeEventIds.slice(0, 3).map((id) => (
+                              <span
+                                key={id}
+                                style={{ width: "0.5rem", height: "0.5rem", borderRadius: "999px", background: activitiesById.get(id)?.color ?? "#8839ef" }}
+                              />
+                            ))}
+                          </div>
+                        </div>
                       </WeekCell>
                     );
                   })}
@@ -132,10 +173,15 @@ export default function CareTimelineGrid({ weeks, activities, ranges, events, se
   );
 }
 
-function rangeSpan(range: SeasonRange): number[] {
-  const weeks: number[] = [];
-  for (let w = range.startWeek; w <= range.endWeek; w++) weeks.push(w);
-  return weeks;
+function groupBy<T, K>(items: T[], key: (item: T) => K): Map<K, T[]> {
+  const map = new Map<K, T[]>();
+  for (const item of items) {
+    const k = key(item);
+    const list = map.get(k);
+    if (list) list.push(item);
+    else map.set(k, [item]);
+  }
+  return map;
 }
 
 function addDays(iso: string, days: number): string {
@@ -162,7 +208,7 @@ function WeekCell({
     <button
       type="button"
       className={`care-timeline-cell${selected ? " selected" : ""}`}
-      style={{ width: WEEK_WIDTH, height, flexShrink: 0 }}
+      style={{ width: `${WEEK_WIDTH_REM}rem`, height, flexShrink: 0 }}
       onClick={() => onSelect(week.index)}
       aria-selected={selected}
       aria-label={`Week of ${week.startDate}`}

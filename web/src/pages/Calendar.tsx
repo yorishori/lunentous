@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { Plus, type LucideIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, type LucideIcon } from "lucide-react";
 import { apiFetch } from "../api/client";
 import type { Plant, ReminderRule, ReminderState, ReminderType, PhaseWindow } from "../api/types";
 import { buildCareTimeline, buildWeeks } from "../lib/careTimeline";
@@ -9,7 +9,13 @@ import MultiSelect from "../components/MultiSelect";
 import Modal from "../components/Modal";
 import TimelineEntryForm from "../components/TimelineEntryForm";
 
-const WINDOW_MONTHS = 4;
+// Not truly infinite/lazily-extended -- 24 months is a large-but-bounded
+// window instead (matches the Android app), which stays simple (no
+// virtualization) and, for a personal plant-care app with a handful of
+// plants, is effectively as far as anyone will ever scroll.
+const WINDOW_MONTHS = 24;
+const SCROLL_PAGE_WEEKS = 4;
+const WEEK_WIDTH_PX = 37; // 2.3rem at the default 16px root -- close enough for a page-scroll amount
 
 function isoDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -38,6 +44,7 @@ function formatWeekRange(startIso: string): string {
 export default function Calendar() {
   const [selectedPlantIds, setSelectedPlantIds] = useState<number[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const { windowStart, windowEnd, weeks } = useMemo(() => {
     const start = new Date();
@@ -128,6 +135,24 @@ export default function Calendar() {
           <button type="button" className="btn" onClick={() => setCreateOpen(true)}>
             <Plus size={16} /> New entry
           </button>
+          <div style={{ display: "flex", gap: "0.25rem" }}>
+            <button
+              type="button"
+              className="btn secondary icon-btn"
+              aria-label="Scroll to earlier weeks"
+              onClick={() => scrollContainerRef.current?.scrollBy({ left: -WEEK_WIDTH_PX * SCROLL_PAGE_WEEKS, behavior: "smooth" })}
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <button
+              type="button"
+              className="btn secondary icon-btn"
+              aria-label="Scroll to later weeks"
+              onClick={() => scrollContainerRef.current?.scrollBy({ left: WEEK_WIDTH_PX * SCROLL_PAGE_WEEKS, behavior: "smooth" })}
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -140,10 +165,12 @@ export default function Calendar() {
       <CareTimelineGrid
         weeks={weeks}
         activities={activities}
+        plants={effectivePlants}
         ranges={ranges}
         events={events}
         selectedWeek={selectedWeek}
         onSelectWeek={setSelectedWeek}
+        scrollContainerRef={scrollContainerRef}
       />
 
       {week && (
