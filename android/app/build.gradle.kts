@@ -2,6 +2,7 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("com.google.devtools.ksp")
 }
 
 android {
@@ -54,11 +55,17 @@ dependencies {
     // Encrypted local storage for the bearer token (Keystore-backed).
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
 
+    // Local-first data layer (see the Android plan's "Data layer & offline
+    // sync" section) -- Room is the source of truth for every screen read.
+    implementation("androidx.room:room-runtime:2.6.1")
+    implementation("androidx.room:room-ktx:2.6.1")
+    ksp("androidx.room:room-compiler:2.6.1")
+
     // REST client for the Lunentous API (see ARCHITECTURE.md's API reference)
-    // -- declared now, unused until the actual API client is built.
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("com.squareup.retrofit2:converter-gson:2.11.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
 
     // On-device reminder polling (spec's original Android design) --
     // declared now, unused until that feature is built.

@@ -1,12 +1,16 @@
 # Lunentous — Android
 
-Not a working app yet, but past the bare toolchain scaffold: there's a
-Catppuccin-themed login screen (server address + API key, saved via
-Keystore-backed encrypted storage) and an adaptive navigation shell —
-bottom bar in portrait, side rail in landscape, both icons-only — with 5
-placeholder destinations mirroring the web app's nav. No data layer yet;
-screens don't fetch or show real data. See the plan this is being built
-from and `ARCHITECTURE.md` at the repo root for the backend it'll talk to.
+Not a working app yet (no real screens), but the foundation is in place:
+a Catppuccin-themed adaptive nav shell (bottom bar in portrait, side rail
+in landscape, both icons-only, 5 destinations mirroring the web app), an
+optional server connection managed from Settings (URL + API key, saved via
+Keystore-backed encrypted storage -- the app is fully usable with no
+server ever configured), and a complete local-first data layer: a Room
+database mirroring every server entity, a Retrofit client covering the
+full REST API, and repositories that read from Room and write through to
+the network when connected (or straight to Room, marked local-only, when
+not). See the plan this is being built from and `ARCHITECTURE.md` at the
+repo root for the backend it talks to.
 
 No Android Studio is required — everything here works from the command
 line with a physical device over `adb`. (Studio works fine too, if you'd
@@ -100,26 +104,44 @@ Standard single-module Android Gradle project:
 ```
 android/
   settings.gradle.kts   plugin/dependency repositories, includes :app
-  build.gradle.kts       top-level plugin version declarations
+  build.gradle.kts       top-level plugin version declarations (incl. KSP)
   app/
     build.gradle.kts      applicationId com.lunentous.app, minSdk 26,
-                          target/compileSdk 35, Compose enabled;
-                          Retrofit + WorkManager already declared as
-                          dependencies (data layer not built yet)
+                          target/compileSdk 35, Compose + Room (via KSP)
     src/main/
       AndroidManifest.xml   INTERNET permission, usesCleartextTraffic
                             (the server has no built-in TLS -- see root
                             README.md's Network exposure note)
       java/com/lunentous/app/
-        MainActivity.kt       entry point: theme + login-gated nav shell
-        data/auth/SessionStore.kt   encrypted server URL + API key storage
-        ui/theme/Theme.kt      Catppuccin Mocha/Latte + JetBrains Mono
-        ui/login/LoginScreen.kt
-        ui/nav/NavDestination.kt, MainScaffold.kt   adaptive bottom bar/rail
+        MainActivity.kt, LunentousApplication.kt   entry point + app-scoped DI
+        di/AppContainer.kt      manual DI (no Hilt) -- database, network,
+                                repositories, all app-scoped singletons
+        data/
+          auth/SessionStore.kt        encrypted server URL + API key storage
+          local/                       Room: entity/, dao/, LunentousDatabase,
+                                       Converters -- local-ID-first schema,
+                                       see ARCHITECTURE.md's Android section
+          remote/                      LunentousApi (Retrofit, full REST
+                                       surface), dto/, ApiKeyInterceptor,
+                                       DynamicBaseUrlInterceptor, NetworkModule
+          repository/                  Plant/ReminderType/PhaseType/
+                                       ReminderRule/ReminderState/PhaseWindow/
+                                       TimelineRepository -- Room reads,
+                                       network-passthrough writes when
+                                       connected, local-only when not
+        ui/
+          theme/Theme.kt      Catppuccin Mocha/Latte + JetBrains Mono
+          nav/NavDestination.kt, MainScaffold.kt   adaptive bottom bar/rail
+          settings/SettingsScreen.kt   server connect/disconnect + status
       res/font/                JetBrains Mono TTFs (SIL licensed, same
                                files the web self-hosts via @fontsource)
       res/values/strings.xml
 ```
 
-Kotlin 2.0.20, AGP 8.6.0, Gradle 8.9, Compose BOM 2024.09.00 — bump these
-together when the time comes, they're cross-version-sensitive.
+Kotlin 2.0.20, AGP 8.6.0, Gradle 8.9, Compose BOM 2024.09.00, Room 2.6.1 —
+bump these together when the time comes, they're cross-version-sensitive.
+
+No outbox/offline-write-queue yet -- writes go straight through to the
+network when connected (or straight to Room, local-only, when not). The
+outbox is a later build phase; see the plan's "Data layer & offline sync"
+section for the full design.

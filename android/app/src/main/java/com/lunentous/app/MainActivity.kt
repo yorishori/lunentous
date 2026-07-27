@@ -7,16 +7,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import com.lunentous.app.data.auth.SessionStore
+import com.lunentous.app.di.AppContainer
 import com.lunentous.app.ui.nav.MainScaffold
 import com.lunentous.app.ui.theme.LunentousTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val sessionStore = SessionStore(applicationContext)
+        val container = (application as LunentousApplication).container
         setContent {
-            LunentousApp(sessionStore)
+            LunentousApp(container)
         }
     }
 }
@@ -27,10 +27,10 @@ class MainActivity : ComponentActivity() {
  * Settings screen rather than a precondition for using anything else.
  */
 @Composable
-fun LunentousApp(sessionStore: SessionStore) {
+fun LunentousApp(container: AppContainer) {
     LunentousTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
-            MainScaffold(sessionStore = sessionStore)
+            MainScaffold(container = container)
         }
     }
 }

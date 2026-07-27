@@ -24,7 +24,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.lunentous.app.data.auth.SessionStore
+import com.lunentous.app.di.AppContainer
 import com.lunentous.app.ui.settings.SettingsScreen
 
 /**
@@ -33,7 +33,7 @@ import com.lunentous.app.ui.settings.SettingsScreen
  * adaptive pattern, switched on orientation per the Android plan.
  */
 @Composable
-fun MainScaffold(sessionStore: SessionStore) {
+fun MainScaffold(container: AppContainer) {
     val navController = rememberNavController()
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
@@ -75,7 +75,7 @@ fun MainScaffold(sessionStore: SessionStore) {
                 NavDestination.entries.forEach { destination ->
                     composable(destination.route) {
                         if (destination == NavDestination.Settings) {
-                            SettingsScreen(sessionStore = sessionStore)
+                            SettingsScreen(sessionStore = container.sessionStore)
                         } else {
                             // Real screens land in later build phases -- see
                             // the Android plan's Build ordering. This proves

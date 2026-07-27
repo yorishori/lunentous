@@ -411,15 +411,22 @@ existing mutation in the codebase, not an exception.
 
 ## Android
 
-`android/` has a toolchain scaffold plus an early app shell: a
-Catppuccin-themed login screen (server URL + API key, Keystore-encrypted)
-and an adaptive nav shell (bottom bar in portrait / rail in landscape,
-icons-only, 5 destinations mirroring the web's nav) — but no data layer or
-real screens yet. See `android/README.md` for the (sudo-free) toolchain
-setup and how to build/install on a physical device, and the architecture
-plan this is being built from for the full design (Room offline-first
-schema, outbox sync, screen-by-screen mapping to the web app). The Retrofit
-client against the API surface documented above is still to come.
+`android/` has a toolchain scaffold, an app shell, and a complete data
+layer — but no real screens yet (everything still renders a placeholder).
+Built so far: a Catppuccin-themed adaptive nav shell (bottom bar in
+portrait / rail in landscape, icons-only, 5 destinations mirroring the
+web's nav); an optional server connection (URL + API key, Keystore-
+encrypted, managed from Settings rather than a login gate — the app works
+fully standalone); a Room database mirroring every server entity
+(local-ID-first, server-ID nullable and lazily resolved); a Retrofit
+client (`LunentousApi`) covering the full REST surface documented above;
+and repositories that read from Room and write through to the network
+when connected, or straight to Room (local-only) when not — no outbox/
+write-queue yet, that's a later phase. See `android/README.md` for the
+(sudo-free) toolchain setup and how to build/install on a physical device,
+and the architecture plan this is being built from for the full design
+(the offline-first outbox/conflict/provisional-due-date design, the
+initial-connect merge strategy, and the remaining screen-by-screen work).
 
 The original spec's design for this app was on-device `WorkManager` polling
 using `reminder_states.notified`; the `notified` column and the
