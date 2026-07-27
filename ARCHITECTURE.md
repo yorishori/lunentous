@@ -412,7 +412,9 @@ existing mutation in the codebase, not an exception.
 ## Android
 
 `android/` has a toolchain scaffold, an app shell, a complete data layer,
-and the Dashboard + Plant Detail screens (phases 1–3 of the build plan).
+and every screen from the plan's read/write phase (phases 1–4 of the build
+plan) -- only offline writes (the outbox/write-queue) and the
+Android-native additions (notifications, camera capture, widget) remain.
 Built so far: a Catppuccin-themed adaptive nav shell (bottom bar in
 portrait / rail in landscape, icons-only, 5 destinations mirroring the
 web's nav); an optional server connection (URL + API key, Keystore-
@@ -424,17 +426,25 @@ repositories that read from Room and write through to the network when
 connected, or straight to Room (local-only) when not, resolving related
 entities' server IDs internally so callers only ever pass local IDs — no
 outbox/write-queue yet, that's a later phase; a Dashboard screen (overdue/
-next-tasks lists, plant grid, mark-done, pull-to-refresh); and a Plant
-Detail screen (hero card with archive/unarchive, reminder rules, phase
-windows, and a timeline feed, each with a shared Compose `ModalBottomSheet`
+next-tasks lists, plant grid, mark-done, pull-to-refresh); a Plant Detail
+screen (hero card with archive/unarchive, reminder rules, phase windows,
+and a timeline feed, each with a shared Compose `ModalBottomSheet`
 create/edit form — collapsed from the web's multi-step wizard into a
 single scrollable sheet, and with photo capture/upload deferred to the
-camera-capture phase). Calendar, Reminder/Phase Types, and the rest of
-Settings still render placeholders. See `android/README.md` for the
-(sudo-free) toolchain setup and how to build/install on a physical device,
-and the architecture plan this is being built from for the full design
-(the offline-first outbox/conflict/provisional-due-date design, the
-initial-connect merge strategy, and the remaining screen-by-screen work).
+camera-capture phase); a Calendar screen (month grid with due/projected/
+logged markers and phase-window shading, driven by a Kotlin port of the
+server's interval-resolution date math, adapted to phone-sized cells with
+dot markers instead of the web's text-label pills, and a day-tap detail
+panel instead of an inline create form); shared Reminder Types/Phase Types
+screens (usage counts computed locally from Room instead of the server's
+join-based count, so they stay correct offline); and Settings' API key
+management + backup export (streamed to a user-chosen file via Storage
+Access Framework, since there's no browser download to fall back on).
+See `android/README.md` for the (sudo-free) toolchain setup and how to
+build/install on a physical device, and the architecture plan this is
+being built from for the full design (the offline-first outbox/conflict/
+provisional-due-date design, the initial-connect merge strategy, and the
+native-additions work still ahead).
 
 The original spec's design for this app was on-device `WorkManager` polling
 using `reminder_states.notified`; the `notified` column and the
