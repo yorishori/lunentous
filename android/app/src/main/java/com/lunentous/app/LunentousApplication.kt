@@ -16,6 +16,7 @@ class LunentousApplication : Application() {
         super.onCreate()
         container = AppContainer(this)
         registerConnectivityTrigger()
+        SyncScheduler.schedulePeriodicPullSync(this)
     }
 
     /** One of the outbox's three sync triggers (enqueue and app-foreground
