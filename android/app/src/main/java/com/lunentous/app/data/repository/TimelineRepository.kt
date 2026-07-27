@@ -2,6 +2,8 @@ package com.lunentous.app.data.repository
 
 import com.lunentous.app.data.auth.SessionStore
 import com.lunentous.app.data.local.dao.PhotoDao
+import com.lunentous.app.data.local.dao.PlantDao
+import com.lunentous.app.data.local.dao.ReminderTypeDao
 import com.lunentous.app.data.local.dao.TimelineEventDao
 import com.lunentous.app.data.local.entity.PhotoEntity
 import com.lunentous.app.data.local.entity.TimelineEventEntity
@@ -24,10 +26,15 @@ data class TimelineEventWithPhotos(val event: TimelineEventEntity, val photos: L
  * Note: like reminder rules, an event tagged with a reminder type
  * (create/edit/delete) can trigger server-side recompute -- callers should
  * re-run ReminderStateRepository.pullSyncForPlant() afterward.
+ *
+ * plantDao/reminderTypeDao are held only to resolve local IDs to server
+ * IDs for outgoing requests -- callers never look these up themselves.
  */
 class TimelineRepository(
     private val eventDao: TimelineEventDao,
     private val photoDao: PhotoDao,
+    private val plantDao: PlantDao,
+    private val reminderTypeDao: ReminderTypeDao,
     private val api: LunentousApi,
     private val sessionStore: SessionStore,
 ) {
@@ -39,13 +46,14 @@ class TimelineRepository(
 
     suspend fun createEvent(
         plantLocalId: Long,
-        plantServerId: Long?,
         eventDate: String,
         reminderTypeLocalId: Long?,
-        reminderTypeServerId: Long?,
         text: String?,
-        photoFiles: List<File>,
+        photoFiles: List<File> = emptyList(),
     ): Result<TimelineEventWithPhotos> = runCatching {
+        val plantServerId = plantDao.getByLocalId(plantLocalId)?.serverId
+        val reminderTypeServerId = reminderTypeLocalId?.let { reminderTypeDao.getByLocalId(it)?.serverId }
+
         if (sessionStore.hasSession() && plantServerId != null) {
             val dto = api.createTimelineEvent(
                 plantServerId,
@@ -75,10 +83,10 @@ class TimelineRepository(
         eventLocalId: Long,
         eventDate: String,
         reminderTypeLocalId: Long?,
-        reminderTypeServerId: Long?,
         text: String?,
     ): Result<TimelineEventWithPhotos> = runCatching {
         val existing = eventDao.getByLocalId(eventLocalId) ?: error("Timeline event $eventLocalId not found locally")
+        val reminderTypeServerId = reminderTypeLocalId?.let { reminderTypeDao.getByLocalId(it)?.serverId }
         if (sessionStore.hasSession() && existing.serverId != null) {
             val dto = api.updateTimelineEvent(existing.serverId, UpdateTimelineEventRequest(eventDate, reminderTypeServerId, text))
             upsertFromDto(dto, existing.plantLocalId, reminderTypeLocalId, preserveLocalId = eventLocalId)
@@ -127,8 +135,13 @@ class TimelineRepository(
     /** Range-based, never pruned -- unlike the other entities' full-list
      * pull sync, timeline history is unbounded, so this only ever adds to
      * the local cache (per the plan's Pull sync design). */
-    suspend fun pullSyncForPlant(plantLocalId: Long, plantServerId: Long, reminderTypeLocalIdByServerId: Map<Long, Long>, limit: Int = 60) {
+    suspend fun pullSyncForPlant(plantLocalId: Long, limit: Int = 60) {
         if (!sessionStore.hasSession()) return
+        val plantServerId = plantDao.getByLocalId(plantLocalId)?.serverId ?: return
+        val reminderTypeLocalIdByServerId = reminderTypeDao.getAllOnce()
+            .mapNotNull { t -> t.serverId?.let { it to t.localId } }
+            .toMap()
+
         val remote = api.getTimeline(plantServerId, limit = limit)
         remote.forEach { dto ->
             val reminderTypeLocalId = dto.reminderTypeId?.let { reminderTypeLocalIdByServerId[it] }

@@ -1,7 +1,9 @@
 package com.lunentous.app.data.repository
 
 import com.lunentous.app.data.auth.SessionStore
+import com.lunentous.app.data.local.dao.PhaseTypeDao
 import com.lunentous.app.data.local.dao.PhaseWindowDao
+import com.lunentous.app.data.local.dao.PlantDao
 import com.lunentous.app.data.local.entity.PlantPhaseWindowEntity
 import com.lunentous.app.data.remote.LunentousApi
 import com.lunentous.app.data.remote.dto.CreatePhaseWindowRequest
@@ -10,6 +12,8 @@ import kotlinx.coroutines.flow.Flow
 
 class PhaseWindowRepository(
     private val dao: PhaseWindowDao,
+    private val plantDao: PlantDao,
+    private val phaseTypeDao: PhaseTypeDao,
     private val api: LunentousApi,
     private val sessionStore: SessionStore,
 ) {
@@ -17,15 +21,16 @@ class PhaseWindowRepository(
 
     suspend fun create(
         plantLocalId: Long,
-        plantServerId: Long?,
         phaseTypeLocalId: Long,
-        phaseTypeServerId: Long?,
         startMonth: Int,
         startDay: Int,
         endMonth: Int,
         endDay: Int,
         notes: String?,
     ): Result<PlantPhaseWindowEntity> = runCatching {
+        val plantServerId = plantDao.getByLocalId(plantLocalId)?.serverId
+        val phaseTypeServerId = phaseTypeDao.getByLocalId(phaseTypeLocalId)?.serverId
+
         if (sessionStore.hasSession() && plantServerId != null && phaseTypeServerId != null) {
             val dto = api.createPhaseWindow(
                 plantServerId,
@@ -49,7 +54,6 @@ class PhaseWindowRepository(
     suspend fun update(
         localId: Long,
         phaseTypeLocalId: Long,
-        phaseTypeServerId: Long?,
         startMonth: Int,
         startDay: Int,
         endMonth: Int,
@@ -57,6 +61,7 @@ class PhaseWindowRepository(
         notes: String?,
     ): Result<PlantPhaseWindowEntity> = runCatching {
         val existing = dao.getByLocalId(localId) ?: error("Phase window $localId not found locally")
+        val phaseTypeServerId = phaseTypeDao.getByLocalId(phaseTypeLocalId)?.serverId
         if (sessionStore.hasSession() && existing.serverId != null && phaseTypeServerId != null) {
             val dto = api.updatePhaseWindow(
                 existing.serverId,
@@ -86,8 +91,13 @@ class PhaseWindowRepository(
         dao.deleteByLocalId(localId)
     }
 
-    suspend fun pullSyncForPlant(plantLocalId: Long, plantServerId: Long, phaseTypeLocalIdByServerId: Map<Long, Long>) {
+    suspend fun pullSyncForPlant(plantLocalId: Long) {
         if (!sessionStore.hasSession()) return
+        val plantServerId = plantDao.getByLocalId(plantLocalId)?.serverId ?: return
+        val phaseTypeLocalIdByServerId = phaseTypeDao.getAllOnce()
+            .mapNotNull { t -> t.serverId?.let { it to t.localId } }
+            .toMap()
+
         val remote = api.getPhaseWindows(plantServerId)
         val remoteIds = remote.map { it.id }.toSet()
         remote.forEach { dto ->

@@ -1,7 +1,9 @@
 package com.lunentous.app.data.repository
 
 import com.lunentous.app.data.auth.SessionStore
+import com.lunentous.app.data.local.dao.PlantDao
 import com.lunentous.app.data.local.dao.ReminderStateDao
+import com.lunentous.app.data.local.dao.ReminderTypeDao
 import com.lunentous.app.data.local.entity.ReminderStateEntity
 import com.lunentous.app.data.local.entity.ReminderStateSource
 import com.lunentous.app.data.remote.LunentousApi
@@ -13,9 +15,15 @@ import kotlinx.coroutines.flow.Flow
  * a SERVER-sourced row directly; only pullSync* does that. Local-provisional
  * writes (computed immediately after an offline reminder-affecting edit)
  * belong to ProvisionalDueDateCalculator, added in a later phase alongside
- * the outbox. */
+ * the outbox.
+ *
+ * plantDao/reminderTypeDao are held only to resolve local<->server ID maps
+ * internally -- callers never build or pass these themselves.
+ */
 class ReminderStateRepository(
     private val dao: ReminderStateDao,
+    private val plantDao: PlantDao,
+    private val reminderTypeDao: ReminderTypeDao,
     private val api: LunentousApi,
     private val sessionStore: SessionStore,
 ) {
@@ -24,8 +32,11 @@ class ReminderStateRepository(
     fun observeAll(): Flow<List<ReminderStateEntity>> = dao.observeAll()
 
     /** Global pull -- used by the dashboard's overdue/next-tasks lists. */
-    suspend fun pullSyncAll(plantLocalIdByServerId: Map<Long, Long>, reminderTypeLocalIdByServerId: Map<Long, Long>) {
+    suspend fun pullSyncAll() {
         if (!sessionStore.hasSession()) return
+        val plantLocalIdByServerId = plantDao.getAllOnce().mapNotNull { p -> p.serverId?.let { it to p.localId } }.toMap()
+        val reminderTypeLocalIdByServerId = reminderTypeDao.getAllOnce().mapNotNull { t -> t.serverId?.let { it to t.localId } }.toMap()
+
         val remote = api.getReminderStates()
         remote.forEach { dto ->
             val plantLocalId = plantLocalIdByServerId[dto.plantId] ?: return@forEach
@@ -38,8 +49,11 @@ class ReminderStateRepository(
      * could have triggered server-side recompute (see ReminderRuleRepository
      * and TimelineRepository's docs), since mutation responses don't
      * include the recomputed state. */
-    suspend fun pullSyncForPlant(plantLocalId: Long, plantServerId: Long, reminderTypeLocalIdByServerId: Map<Long, Long>) {
+    suspend fun pullSyncForPlant(plantLocalId: Long) {
         if (!sessionStore.hasSession()) return
+        val plantServerId = plantDao.getByLocalId(plantLocalId)?.serverId ?: return
+        val reminderTypeLocalIdByServerId = reminderTypeDao.getAllOnce().mapNotNull { t -> t.serverId?.let { it to t.localId } }.toMap()
+
         val remote = api.getReminderStatesForPlant(plantServerId)
         remote.forEach { dto ->
             val reminderTypeLocalId = reminderTypeLocalIdByServerId[dto.reminderTypeId] ?: return@forEach

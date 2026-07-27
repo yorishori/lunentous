@@ -14,6 +14,9 @@ interface PhaseTypeDao {
     @Query("SELECT * FROM phase_types WHERE deleted = 0 ORDER BY name")
     fun observeAll(): Flow<List<PhaseTypeEntity>>
 
+    @Query("SELECT * FROM phase_types WHERE deleted = 0")
+    suspend fun getAllOnce(): List<PhaseTypeEntity>
+
     @Query("SELECT * FROM phase_types WHERE localId = :localId")
     suspend fun getByLocalId(localId: Long): PhaseTypeEntity?
 

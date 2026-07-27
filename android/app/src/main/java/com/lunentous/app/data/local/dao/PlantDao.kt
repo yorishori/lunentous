@@ -15,6 +15,9 @@ interface PlantDao {
     @Query("SELECT * FROM plants WHERE deleted = 0 ORDER BY name")
     fun observeAll(): Flow<List<PlantEntity>>
 
+    @Query("SELECT * FROM plants WHERE deleted = 0")
+    suspend fun getAllOnce(): List<PlantEntity>
+
     @Query("SELECT * FROM plants WHERE localId = :localId")
     fun observeByLocalId(localId: Long): Flow<PlantEntity?>
 

@@ -33,8 +33,34 @@ class AppContainer(context: Context) {
     val plantRepository = PlantRepository(database.plantDao(), api, sessionStore)
     val reminderTypeRepository = ReminderTypeRepository(database.reminderTypeDao(), api, sessionStore)
     val phaseTypeRepository = PhaseTypeRepository(database.phaseTypeDao(), api, sessionStore)
-    val reminderRuleRepository = ReminderRuleRepository(database.reminderRuleDao(), database.overridePeriodDao(), api, sessionStore)
-    val reminderStateRepository = ReminderStateRepository(database.reminderStateDao(), api, sessionStore)
-    val phaseWindowRepository = PhaseWindowRepository(database.phaseWindowDao(), api, sessionStore)
-    val timelineRepository = TimelineRepository(database.timelineEventDao(), database.photoDao(), api, sessionStore)
+    val reminderRuleRepository = ReminderRuleRepository(
+        database.reminderRuleDao(),
+        database.overridePeriodDao(),
+        database.plantDao(),
+        database.reminderTypeDao(),
+        api,
+        sessionStore,
+    )
+    val reminderStateRepository = ReminderStateRepository(
+        database.reminderStateDao(),
+        database.plantDao(),
+        database.reminderTypeDao(),
+        api,
+        sessionStore,
+    )
+    val phaseWindowRepository = PhaseWindowRepository(
+        database.phaseWindowDao(),
+        database.plantDao(),
+        database.phaseTypeDao(),
+        api,
+        sessionStore,
+    )
+    val timelineRepository = TimelineRepository(
+        database.timelineEventDao(),
+        database.photoDao(),
+        database.plantDao(),
+        database.reminderTypeDao(),
+        api,
+        sessionStore,
+    )
 }

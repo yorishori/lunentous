@@ -14,6 +14,9 @@ interface ReminderTypeDao {
     @Query("SELECT * FROM reminder_types WHERE deleted = 0 ORDER BY name")
     fun observeAll(): Flow<List<ReminderTypeEntity>>
 
+    @Query("SELECT * FROM reminder_types WHERE deleted = 0")
+    suspend fun getAllOnce(): List<ReminderTypeEntity>
+
     @Query("SELECT * FROM reminder_types WHERE localId = :localId")
     suspend fun getByLocalId(localId: Long): ReminderTypeEntity?
 

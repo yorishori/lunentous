@@ -2,7 +2,9 @@ package com.lunentous.app.data.repository
 
 import com.lunentous.app.data.auth.SessionStore
 import com.lunentous.app.data.local.dao.OverridePeriodDao
+import com.lunentous.app.data.local.dao.PlantDao
 import com.lunentous.app.data.local.dao.ReminderRuleDao
+import com.lunentous.app.data.local.dao.ReminderTypeDao
 import com.lunentous.app.data.local.entity.OverridePeriodEntity
 import com.lunentous.app.data.local.entity.ReminderRuleEntity
 import com.lunentous.app.data.remote.LunentousApi
@@ -24,10 +26,16 @@ data class ReminderRuleWithPeriods(
  * it (checked against the actual route handler) -- callers should re-run
  * ReminderStateRepository.pullSyncForPlant() afterward. Left as a
  * ViewModel-layer orchestration rather than a repo-to-repo dependency.
+ *
+ * plantDao/reminderTypeDao are held only to resolve a plantLocalId/
+ * reminderTypeLocalId to its serverId when a network call needs one --
+ * callers never have to look this up or pass it in themselves.
  */
 class ReminderRuleRepository(
     private val ruleDao: ReminderRuleDao,
     private val periodDao: OverridePeriodDao,
+    private val plantDao: PlantDao,
+    private val reminderTypeDao: ReminderTypeDao,
     private val api: LunentousApi,
     private val sessionStore: SessionStore,
 ) {
@@ -38,12 +46,13 @@ class ReminderRuleRepository(
 
     suspend fun create(
         plantLocalId: Long,
-        plantServerId: Long?,
         reminderTypeLocalId: Long,
-        reminderTypeServerId: Long?,
         defaultIntervalDays: Int?,
         overridePeriods: List<OverridePeriodEntity>,
     ): Result<ReminderRuleWithPeriods> = runCatching {
+        val plantServerId = plantDao.getByLocalId(plantLocalId)?.serverId
+        val reminderTypeServerId = reminderTypeDao.getByLocalId(reminderTypeLocalId)?.serverId
+
         if (sessionStore.hasSession() && plantServerId != null && reminderTypeServerId != null) {
             val dto = api.createReminderRule(
                 plantServerId,
@@ -88,12 +97,17 @@ class ReminderRuleRepository(
         if (sessionStore.hasSession() && existing.serverId != null) {
             api.deleteReminderRule(existing.serverId)
         }
-        ruleDao.deleteByLocalId(ruleLocalId) // cascades override_periods via deleteByRule below
         periodDao.deleteByRule(ruleLocalId)
+        ruleDao.deleteByLocalId(ruleLocalId)
     }
 
-    suspend fun pullSyncForPlant(plantLocalId: Long, plantServerId: Long, reminderTypeLocalIdByServerId: Map<Long, Long>) {
+    suspend fun pullSyncForPlant(plantLocalId: Long) {
         if (!sessionStore.hasSession()) return
+        val plantServerId = plantDao.getByLocalId(plantLocalId)?.serverId ?: return
+        val reminderTypeLocalIdByServerId = reminderTypeDao.getAllOnce()
+            .mapNotNull { t -> t.serverId?.let { it to t.localId } }
+            .toMap()
+
         val remote = api.getReminderRules(plantServerId)
         val remoteIds = remote.map { it.id }.toSet()
         remote.forEach { dto ->
