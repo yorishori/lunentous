@@ -11,6 +11,7 @@ import com.lunentous.app.data.local.entity.PlantEntity
 import com.lunentous.app.data.local.entity.PlantPhaseWindowEntity
 import com.lunentous.app.data.local.entity.ReminderTypeEntity
 import com.lunentous.app.data.repository.ReminderRuleWithPeriods
+import com.lunentous.app.data.repository.TimelineEventWithPhotos
 import com.lunentous.app.di.AppContainer
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -35,6 +36,9 @@ class PlantDetailViewModel(private val container: AppContainer, private val plan
     val phaseWindows: StateFlow<List<PlantPhaseWindowEntity>> = container.phaseWindowRepository.observeByPlant(plantLocalId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val timelineEvents: StateFlow<List<TimelineEventWithPhotos>> = container.timelineRepository.observeRecentByPlant(plantLocalId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     var isArchiving by mutableStateOf(false)
         private set
 
@@ -53,12 +57,19 @@ class PlantDetailViewModel(private val container: AppContainer, private val plan
     var windowError by mutableStateOf<String?>(null)
         private set
 
+    var isSavingEntry by mutableStateOf(false)
+        private set
+
+    var entryError by mutableStateOf<String?>(null)
+        private set
+
     init {
         viewModelScope.launch { container.plantRepository.pullSync() }
         viewModelScope.launch { container.reminderTypeRepository.pullSync() }
         viewModelScope.launch { container.reminderRuleRepository.pullSyncForPlant(plantLocalId) }
         viewModelScope.launch { container.phaseTypeRepository.pullSync() }
         viewModelScope.launch { container.phaseWindowRepository.pullSyncForPlant(plantLocalId) }
+        viewModelScope.launch { container.timelineRepository.pullSyncForPlant(plantLocalId) }
     }
 
     fun toggleArchive() {
@@ -142,6 +153,44 @@ class PlantDetailViewModel(private val container: AppContainer, private val plan
             isSavingWindow = false
             result.onSuccess { onDone() }
             result.onFailure { windowError = it.message ?: "Failed to delete phase window" }
+        }
+    }
+
+    fun saveTimelineEntry(
+        existingEventLocalId: Long?,
+        eventDate: String,
+        reminderTypeLocalId: Long?,
+        text: String?,
+        onDone: () -> Unit,
+    ) {
+        viewModelScope.launch {
+            isSavingEntry = true
+            entryError = null
+            val result = if (existingEventLocalId != null) {
+                container.timelineRepository.updateEvent(existingEventLocalId, eventDate, reminderTypeLocalId, text)
+            } else {
+                container.timelineRepository.createEvent(plantLocalId, eventDate, reminderTypeLocalId, text)
+            }
+            isSavingEntry = false
+            result.onSuccess {
+                if (reminderTypeLocalId != null) container.reminderStateRepository.pullSyncForPlant(plantLocalId)
+                onDone()
+            }
+            result.onFailure { entryError = it.message ?: "Failed to save timeline entry" }
+        }
+    }
+
+    fun deleteTimelineEntry(eventLocalId: Long, onDone: () -> Unit) {
+        viewModelScope.launch {
+            isSavingEntry = true
+            entryError = null
+            val result = container.timelineRepository.deleteEvent(eventLocalId)
+            isSavingEntry = false
+            result.onSuccess {
+                container.reminderStateRepository.pullSyncForPlant(plantLocalId)
+                onDone()
+            }
+            result.onFailure { entryError = it.message ?: "Failed to delete timeline entry" }
         }
     }
 }

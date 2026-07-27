@@ -15,6 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Add
@@ -51,7 +52,9 @@ import com.lunentous.app.data.local.entity.PlantPhaseWindowEntity
 import com.lunentous.app.data.local.entity.ReminderTypeEntity
 import com.lunentous.app.data.remote.buildPhotoUrl
 import com.lunentous.app.data.repository.ReminderRuleWithPeriods
+import com.lunentous.app.data.repository.TimelineEventWithPhotos
 import com.lunentous.app.di.AppContainer
+import com.lunentous.app.ui.components.ConfirmDialog
 import com.lunentous.app.ui.components.PlantAvatar
 import com.lunentous.app.ui.icons.iconFor
 import com.lunentous.app.ui.theme.LunentousExtendedTheme
@@ -64,6 +67,11 @@ private sealed interface RuleFormTarget {
 private sealed interface WindowFormTarget {
     data object Create : WindowFormTarget
     data class Edit(val window: PlantPhaseWindowEntity) : WindowFormTarget
+}
+
+private sealed interface EntryFormTarget {
+    data object Create : EntryFormTarget
+    data class Edit(val event: TimelineEventWithPhotos) : EntryFormTarget
 }
 
 /** Hero card (photo/info), edit, and archive/unarchive, plus the reminder
@@ -87,8 +95,11 @@ fun PlantDetailScreen(
     val reminderTypes by viewModel.reminderTypes.collectAsState()
     val phaseTypes by viewModel.phaseTypes.collectAsState()
     val phaseWindows by viewModel.phaseWindows.collectAsState()
+    val timelineEvents by viewModel.timelineEvents.collectAsState()
     var ruleFormTarget by remember { mutableStateOf<RuleFormTarget?>(null) }
     var windowFormTarget by remember { mutableStateOf<WindowFormTarget?>(null) }
+    var entryFormTarget by remember { mutableStateOf<EntryFormTarget?>(null) }
+    var deletingEventLocalId by remember { mutableStateOf<Long?>(null) }
     val colors = LunentousExtendedTheme.colors
     val baseUrl = container.sessionStore.getBaseUrl()
 
@@ -180,6 +191,14 @@ fun PlantDetailScreen(
                 onAdd = { ruleFormTarget = RuleFormTarget.Create },
                 onEdit = { rule -> ruleFormTarget = RuleFormTarget.Edit(rule) },
             )
+
+            TimelineSection(
+                events = timelineEvents,
+                types = reminderTypes,
+                onAdd = { entryFormTarget = EntryFormTarget.Create },
+                onEdit = { event -> entryFormTarget = EntryFormTarget.Edit(event) },
+                onDelete = { event -> deletingEventLocalId = event.event.localId },
+            )
         }
     }
 
@@ -222,6 +241,37 @@ fun PlantDetailScreen(
             },
         )
     }
+
+    entryFormTarget?.let { target ->
+        val existing = (target as? EntryFormTarget.Edit)?.event
+        TimelineEntryFormSheet(
+            reminderTypes = reminderTypes,
+            existing = existing,
+            isSaving = viewModel.isSavingEntry,
+            error = viewModel.entryError,
+            onDismiss = { entryFormTarget = null },
+            onSave = { eventDate, reminderTypeLocalId, text ->
+                viewModel.saveTimelineEntry(existing?.event?.localId, eventDate, reminderTypeLocalId, text) {
+                    entryFormTarget = null
+                }
+            },
+            onDelete = existing?.let { e ->
+                { viewModel.deleteTimelineEntry(e.event.localId) { entryFormTarget = null } }
+            },
+        )
+    }
+
+    ConfirmDialog(
+        open = deletingEventLocalId != null,
+        title = "Delete entry?",
+        message = "This removes the timeline entry and any attached photos.",
+        confirmLabel = "Delete",
+        pending = viewModel.isSavingEntry,
+        onConfirm = {
+            deletingEventLocalId?.let { id -> viewModel.deleteTimelineEntry(id) { deletingEventLocalId = null } }
+        },
+        onDismiss = { deletingEventLocalId = null },
+    )
 }
 
 @Composable
@@ -338,6 +388,70 @@ private fun ReminderRulesSection(
                             Text(summary, style = MaterialTheme.typography.bodySmall, color = colors.textMuted)
                         }
                         Icon(Icons.Filled.Edit, contentDescription = "Edit reminder rule", tint = colors.textMuted, modifier = Modifier.size(18.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TimelineSection(
+    events: List<TimelineEventWithPhotos>,
+    types: List<ReminderTypeEntity>,
+    onAdd: () -> Unit,
+    onEdit: (TimelineEventWithPhotos) -> Unit,
+    onDelete: (TimelineEventWithPhotos) -> Unit,
+) {
+    val colors = LunentousExtendedTheme.colors
+    val typesById = types.associateBy { it.localId }
+
+    Column(modifier = Modifier.padding(top = 20.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Timeline", style = MaterialTheme.typography.titleLarge)
+            TextButton(onClick = onAdd) {
+                Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                Text(" Log entry", modifier = Modifier.padding(start = 2.dp))
+            }
+        }
+
+        if (events.isEmpty()) {
+            Text("No timeline entries yet.", color = colors.textMuted, modifier = Modifier.padding(top = 4.dp))
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+            events.forEach { eventWithPhotos ->
+                val event = eventWithPhotos.event
+                val type = event.reminderTypeLocalId?.let { typesById[it] }
+
+                Card(onClick = { onEdit(eventWithPhotos) }, modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(event.eventDate, style = MaterialTheme.typography.bodyMedium)
+                            IconButton(onClick = { onDelete(eventWithPhotos) }, modifier = Modifier.size(28.dp)) {
+                                Icon(Icons.Filled.Delete, contentDescription = "Delete entry", tint = colors.overdue, modifier = Modifier.size(16.dp))
+                            }
+                        }
+                        type?.let {
+                            val typeColor = it.color?.let { c -> runCatching { Color(android.graphics.Color.parseColor(c)) }.getOrNull() } ?: colors.accent
+                            Text(
+                                it.name,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = typeColor,
+                                modifier = Modifier.padding(top = 2.dp),
+                            )
+                        }
+                        event.text?.takeIf { it.isNotBlank() }?.let {
+                            Text(it, style = MaterialTheme.typography.bodySmall, color = colors.textMuted, modifier = Modifier.padding(top = 4.dp))
+                        }
                     }
                 }
             }
