@@ -151,17 +151,19 @@ fun CalendarScreen(container: AppContainer) {
             existing = existing,
             plants = if (existing == null) uiState.allPlants else emptyList(),
             initialDate = (target as? EntrySheetTarget.Create)?.initialDate,
+            baseUrl = baseUrl,
             isSaving = viewModel.isSavingEntry,
             error = viewModel.entryError,
             onDismiss = { entryTarget = null },
-            onSave = { plantLocalId, eventDate, reminderTypeLocalId, text ->
-                viewModel.saveEntry(plantLocalId, existing?.event?.localId, eventDate, reminderTypeLocalId, text) {
+            onSave = { plantLocalId, eventDate, reminderTypeLocalId, text, photoFiles ->
+                viewModel.saveEntry(plantLocalId, existing?.event?.localId, eventDate, reminderTypeLocalId, text, photoFiles) {
                     entryTarget = null
                 }
             },
             onDelete = existing?.let { e ->
                 { viewModel.deleteEntry(e.event.plantLocalId, e.event.localId) { entryTarget = null } }
             },
+            onAppendPhotos = { eventLocalId, files -> viewModel.appendPhotos(eventLocalId, files) },
         )
     }
 

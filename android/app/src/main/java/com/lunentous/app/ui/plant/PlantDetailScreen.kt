@@ -248,17 +248,19 @@ fun PlantDetailScreen(
             reminderTypes = reminderTypes,
             existing = existing,
             fixedPlantLocalId = plantLocalId,
+            baseUrl = baseUrl,
             isSaving = viewModel.isSavingEntry,
             error = viewModel.entryError,
             onDismiss = { entryFormTarget = null },
-            onSave = { _, eventDate, reminderTypeLocalId, text ->
-                viewModel.saveTimelineEntry(existing?.event?.localId, eventDate, reminderTypeLocalId, text) {
+            onSave = { _, eventDate, reminderTypeLocalId, text, photoFiles ->
+                viewModel.saveTimelineEntry(existing?.event?.localId, eventDate, reminderTypeLocalId, text, photoFiles) {
                     entryFormTarget = null
                 }
             },
             onDelete = existing?.let { e ->
                 { viewModel.deleteTimelineEntry(e.event.localId) { entryFormTarget = null } }
             },
+            onAppendPhotos = { eventLocalId, files -> viewModel.appendPhotos(eventLocalId, files) },
         )
     }
 

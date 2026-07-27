@@ -5,6 +5,17 @@
          trigger an outbox sync attempt as soon as connectivity returns. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+    <!-- Camera capture (ui/camera/CameraCapture.kt) delegates to the
+         system camera app via an implicit intent rather than an in-app
+         CameraX preview, so this app itself never needs the CAMERA
+         permission, just package-visibility to find a camera app on
+         API 30+. -->
+    <queries>
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE" />
+        </intent>
+    </queries>
+
     <!-- The server has no built-in TLS (README.md's Network exposure note);
          users reach it over plain HTTP via LAN/WireGuard/reverse proxy.
          Android blocks cleartext traffic by default since API 28. -->
@@ -26,5 +37,18 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Grants the system camera app temporary access to write into
+             our app-private files/photos/ dir, see res/xml/file_paths.xml
+             and ui/camera/CameraCapture.kt. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 </manifest>

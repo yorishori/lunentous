@@ -1,11 +1,14 @@
 package com.lunentous.app.ui.plant
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
@@ -15,6 +18,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -26,21 +30,31 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.lunentous.app.data.local.entity.PlantEntity
+import com.lunentous.app.data.remote.buildPhotoUrl
 import com.lunentous.app.di.AppContainer
+import com.lunentous.app.ui.camera.rememberCameraCaptureLauncher
+import com.lunentous.app.ui.components.PlantAvatar
 import com.lunentous.app.ui.theme.LunentousExtendedTheme
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
 
 /**
  * Shared create/edit sheet, mirroring web/src/components/PlantForm.tsx's
- * field set -- avatar photo capture is deferred to the phase-6 camera
- * work (Android plan's Build ordering), so it's not included here yet.
+ * field set, plus avatar photo capture (Android-only, camera capture
+ * makes it worth adding beyond what the web form offers). Avatar upload
+ * requires the plant to already have a serverId (see
+ * PlantRepository.uploadAvatar), so it's only offered when editing an
+ * already-synced plant, not while creating a new one.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,11 +76,40 @@ fun PlantFormSheet(
     var showDatePicker by remember { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var avatarUploading by remember { mutableStateOf(false) }
+    var avatarPhotoPath by remember { mutableStateOf(existing?.avatarPhotoPath) }
+
+    val takeAvatarPhoto = rememberCameraCaptureLauncher { file ->
+        val plantLocalId = existing?.localId ?: return@rememberCameraCaptureLauncher
+        scope.launch {
+            avatarUploading = true
+            error = null
+            val part = MultipartBody.Part.createFormData("file", file.name, file.asRequestBody("image/*".toMediaType()))
+            container.plantRepository.uploadAvatar(plantLocalId, part)
+                .onSuccess { avatarPhotoPath = it.avatarPhotoPath }
+                .onFailure { error = it.message ?: "Failed to upload avatar" }
+            avatarUploading = false
+        }
+    }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
             Text(if (existing != null) "Edit plant" else "Add plant", style = MaterialTheme.typography.titleLarge)
             Spacer(Modifier.padding(top = 12.dp))
+
+            if (existing != null) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(bottom = 14.dp)) {
+                    PlantAvatar(photoUrl = buildPhotoUrl(container.sessionStore.getBaseUrl(), avatarPhotoPath), size = 56.dp)
+                    if (existing.serverId != null) {
+                        OutlinedButton(onClick = takeAvatarPhoto, enabled = !avatarUploading) {
+                            Icon(Icons.Filled.AddAPhoto, contentDescription = null, modifier = Modifier.padding(end = 4.dp))
+                            Text(if (avatarUploading) "Uploading…" else "Change photo")
+                        }
+                    } else {
+                        Text("Avatar photo available once this plant has synced", style = MaterialTheme.typography.bodySmall, color = colors.textMuted)
+                    }
+                }
+            }
 
             OutlinedTextField(
                 value = name,

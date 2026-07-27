@@ -14,6 +14,7 @@ import com.lunentous.app.data.repository.ReminderRuleWithPeriods
 import com.lunentous.app.data.repository.TimelineEventWithPhotos
 import com.lunentous.app.data.sync.dates.DateMath
 import com.lunentous.app.di.AppContainer
+import java.io.File
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -172,6 +173,7 @@ class CalendarViewModel(private val container: AppContainer) : ViewModel() {
         eventDate: String,
         reminderTypeLocalId: Long?,
         text: String?,
+        photoFiles: List<File> = emptyList(),
         onDone: () -> Unit,
     ) {
         viewModelScope.launch {
@@ -180,7 +182,7 @@ class CalendarViewModel(private val container: AppContainer) : ViewModel() {
             val result = if (existingEventLocalId != null) {
                 container.timelineRepository.updateEvent(existingEventLocalId, eventDate, reminderTypeLocalId, text)
             } else {
-                container.timelineRepository.createEvent(plantLocalId, eventDate, reminderTypeLocalId, text)
+                container.timelineRepository.createEvent(plantLocalId, eventDate, reminderTypeLocalId, text, photoFiles)
             }
             isSavingEntry = false
             result.onSuccess {
@@ -188,6 +190,13 @@ class CalendarViewModel(private val container: AppContainer) : ViewModel() {
                 onDone()
             }
             result.onFailure { entryError = it.message ?: "Failed to save timeline entry" }
+        }
+    }
+
+    fun appendPhotos(eventLocalId: Long, photoFiles: List<File>) {
+        viewModelScope.launch {
+            container.timelineRepository.appendPhotos(eventLocalId, photoFiles)
+                .onFailure { entryError = it.message ?: "Failed to add photo" }
         }
     }
 

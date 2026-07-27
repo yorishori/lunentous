@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Exposes app-private files/photos/ (where captured photos are written,
+     see ui/camera/CameraCapture.kt) to the system camera app via a
+     content:// URI, since Android forbids passing file:// URIs to other
+     apps starting API 24. -->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <files-path name="photos" path="photos/" />
+</paths>
