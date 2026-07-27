@@ -31,6 +31,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.lunentous.app.di.AppContainer
 import com.lunentous.app.ui.dashboard.DashboardScreen
+import com.lunentous.app.ui.plant.PlantDetailScreen
 import com.lunentous.app.ui.plant.PlantFormSheet
 import com.lunentous.app.ui.plant.PlantFormTarget
 import com.lunentous.app.ui.settings.SettingsScreen
@@ -113,9 +114,12 @@ fun MainScaffold(container: AppContainer) {
                     arguments = listOf(navArgument(PLANT_LOCAL_ID_ARG) { type = NavType.LongType }),
                 ) { backStackEntry ->
                     val plantLocalId = backStackEntry.arguments?.getLong(PLANT_LOCAL_ID_ARG) ?: return@composable
-                    // Real hero card / rules / phase windows / timeline land in
-                    // the next build steps -- this proves the route + args work.
-                    PlaceholderScreen("Plant #$plantLocalId")
+                    PlantDetailScreen(
+                        container = container,
+                        plantLocalId = plantLocalId,
+                        onBack = { navController.popBackStack() },
+                        onEdit = { plant -> plantFormTarget = PlantFormTarget.Edit(plant) },
+                    )
                 }
             }
         }
