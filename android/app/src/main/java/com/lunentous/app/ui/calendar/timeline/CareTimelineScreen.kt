@@ -5,6 +5,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +16,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -22,6 +25,7 @@ import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronLeft
@@ -46,6 +50,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
@@ -55,8 +60,13 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import coil.compose.AsyncImage
 import com.lunentous.app.data.local.entity.PlantEntity
+import com.lunentous.app.data.local.entity.ReminderTypeEntity
+import com.lunentous.app.data.remote.photoDisplayModel
+import com.lunentous.app.data.repository.TimelineEventWithPhotos
 import com.lunentous.app.di.AppContainer
+import com.lunentous.app.ui.icons.iconFor
 import com.lunentous.app.ui.plant.TimelineEntryFormSheet
 import com.lunentous.app.ui.theme.LunentousExtendedTheme
 import java.io.File
@@ -176,7 +186,12 @@ fun CareTimelineScreen(
                     }
                 }
 
-                DetailPanel(uiState = uiState, selectedWeek = viewModel.selectedWeek, modifier = Modifier.fillMaxWidth().padding(16.dp))
+                DetailPanel(
+                    uiState = uiState,
+                    selectedWeek = viewModel.selectedWeek,
+                    baseUrl = container.sessionStore.getBaseUrl(),
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                )
             }
         }
     }
@@ -401,52 +416,99 @@ private fun WeekTickRow(weeks: List<WeekInfo>, selectedWeek: Int, today: LocalDa
 private fun Modifier.selectableCell(isSelected: Boolean): Modifier = this
     .semantics { selected = isSelected }
 
-@OptIn(ExperimentalLayoutApi::class)
+/** Shows every timeline entry actually logged during the selected week
+ * (not the phase-window/reminder-occurrence summary the grid itself
+ * already shows visually) -- capped and internally scrollable so a
+ * photo-heavy week doesn't push the grid above off-screen. */
 @Composable
-private fun DetailPanel(uiState: CareTimelineUiState, selectedWeek: Int, modifier: Modifier = Modifier) {
+private fun DetailPanel(uiState: CareTimelineUiState, selectedWeek: Int, baseUrl: String?, modifier: Modifier = Modifier) {
     val colors = LunentousExtendedTheme.colors
     val week = uiState.weeks.getOrNull(selectedWeek)
-    val activitiesById = remember(uiState.activities) { uiState.activities.associateBy { it.id } }
-    val activeRanges = remember(selectedWeek, uiState.ranges) { uiState.ranges.filter { selectedWeek in it.startWeek..it.endWeek } }
-    val activeEvents = remember(selectedWeek, uiState.events) { uiState.events.filter { it.week == selectedWeek } }
+    val plantsById = remember(uiState.allPlants) { uiState.allPlants.associateBy { it.localId } }
+    val reminderTypesById = remember(uiState.allReminderTypes) { uiState.allReminderTypes.associateBy { it.localId } }
+    val weekEntries = remember(week, uiState.timelineEntries) {
+        week?.let { w ->
+            val weekEnd = w.startDate.plusDays(6)
+            uiState.timelineEntries.filter { entry ->
+                val date = LocalDate.parse(entry.event.eventDate)
+                !date.isBefore(w.startDate) && !date.isAfter(weekEnd)
+            }
+        }.orEmpty()
+    }
     val formatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
 
     OutlinedCard(modifier = modifier) {
-        Column(Modifier.padding(12.dp)) {
+        Column(
+            modifier = Modifier
+                .padding(12.dp)
+                .heightIn(max = 280.dp)
+                .verticalScroll(rememberScrollState()),
+        ) {
             if (week != null) {
                 Text(
                     "Week of ${week.startDate.format(formatter)} – ${week.startDate.plusDays(6).format(formatter)}",
                     style = MaterialTheme.typography.titleSmall,
                 )
             }
-            if (activeRanges.isEmpty() && activeEvents.isEmpty()) {
+            if (weekEntries.isEmpty()) {
                 Text(
-                    "Routine care only — nothing scheduled this week.",
+                    "No entries logged this week.",
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.textMuted,
                     modifier = Modifier.padding(top = 6.dp),
                 )
             } else {
-                FlowRow(modifier = Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    activeRanges.forEach { range -> activitiesById[range.activityId]?.let { DetailChip(it, range.plantName) } }
-                    activeEvents.forEach { event -> activitiesById[event.activityId]?.let { DetailChip(it, event.plantName) } }
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+                    weekEntries.forEach { entry ->
+                        val plant = plantsById[entry.event.plantLocalId]
+                        val type = entry.event.reminderTypeLocalId?.let { reminderTypesById[it] }
+                        EntryCard(entry = entry, plantName = plant?.name ?: "Unknown plant", reminderType = type, baseUrl = baseUrl)
+                    }
                 }
             }
         }
     }
 }
 
+/** One card per logged entry -- untyped (journal-only) entries show no
+ * icon at all, since there's no reminder type to represent. */
 @Composable
-private fun DetailChip(activity: CareActivity, plantName: String) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(activity.color.copy(alpha = 0.16f))
-            .padding(horizontal = 10.dp, vertical = 6.dp),
-    ) {
-        Icon(activity.icon, contentDescription = null, tint = activity.color, modifier = Modifier.size(14.dp))
-        Text("${activity.label} · $plantName", style = MaterialTheme.typography.labelSmall, color = activity.color)
+private fun EntryCard(entry: TimelineEventWithPhotos, plantName: String, reminderType: ReminderTypeEntity?, baseUrl: String?) {
+    val colors = LunentousExtendedTheme.colors
+    val typeColor = reminderType?.color?.let { runCatching { Color(android.graphics.Color.parseColor(it)) }.getOrNull() } ?: colors.accent
+
+    OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (reminderType != null) {
+                    Box(
+                        Modifier.size(28.dp).clip(CircleShape).background(typeColor.copy(alpha = 0.16f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(iconFor(reminderType.icon), contentDescription = null, tint = typeColor, modifier = Modifier.size(14.dp))
+                    }
+                }
+                Column(Modifier.weight(1f)) {
+                    Text(plantName, style = MaterialTheme.typography.bodyMedium)
+                    reminderType?.let { Text(it.name, style = MaterialTheme.typography.labelSmall, color = typeColor) }
+                }
+                Text(entry.event.eventDate, style = MaterialTheme.typography.labelSmall, color = colors.textMuted)
+            }
+            entry.event.text?.takeIf { it.isNotBlank() }?.let {
+                Text(it, style = MaterialTheme.typography.bodySmall, color = colors.textMuted, modifier = Modifier.padding(top = 6.dp))
+            }
+            if (entry.photos.isNotEmpty()) {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 8.dp)) {
+                    items(entry.photos) { photo ->
+                        AsyncImage(
+                            model = photoDisplayModel(baseUrl, photo),
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.size(64.dp).clip(RoundedCornerShape(8.dp)),
+                        )
+                    }
+                }
+            }
+        }
     }
 }

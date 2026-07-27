@@ -74,8 +74,8 @@ class LunentousWidget : GlanceAppWidget() {
                     Text(
                         text = if (model.overdueCount > 0) "${model.overdueCount} overdue" else "All caught up",
                         style = TextStyle(color = ColorProvider(if (model.overdueCount > 0) overdueColor else accentColor), fontWeight = FontWeight.Bold),
+                        modifier = GlanceModifier.defaultWeight(),
                     )
-                    Spacer(modifier = GlanceModifier.width(8.dp))
                     Text(
                         "+ New entry",
                         style = TextStyle(color = ColorProvider(accentColor), fontWeight = FontWeight.Bold),

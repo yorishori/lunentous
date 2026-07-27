@@ -16,6 +16,7 @@ import com.lunentous.app.data.local.entity.PlantPhaseWindowEntity
 import com.lunentous.app.data.local.entity.ReminderStateEntity
 import com.lunentous.app.data.local.entity.ReminderTypeEntity
 import com.lunentous.app.data.repository.ReminderRuleWithPeriods
+import com.lunentous.app.data.repository.TimelineEventWithPhotos
 import com.lunentous.app.data.sync.dates.DateMath
 import com.lunentous.app.di.AppContainer
 import com.lunentous.app.ui.icons.iconFor
@@ -56,6 +57,7 @@ data class CareTimelineUiState(
     val events: List<CareEvent> = emptyList(),
     val allPlants: List<PlantEntity> = emptyList(),
     val allReminderTypes: List<ReminderTypeEntity> = emptyList(),
+    val timelineEntries: List<TimelineEventWithPhotos> = emptyList(),
 )
 
 private data class RawData(
@@ -69,11 +71,18 @@ private data class RawData(
 
 // Not truly infinite/lazily-extended (the original spec's own
 // implementation notes call out switching to a virtualized custom Layout
-// once the window gets into the hundreds-of-columns range) -- 24 months
-// is a large-but-bounded window instead, which is simple (still a plain
-// Row, no virtualization) and, for a personal plant-care app with a
+// once the window gets into the hundreds-of-columns range) -- ~24 months
+// total is a large-but-bounded window instead, which is simple (still a
+// plain Row, no virtualization) and, for a personal plant-care app with a
 // handful of plants, effectively as far as anyone will ever scroll.
-private const val WINDOW_MONTHS = 24L
+//
+// Shifted a couple months into the past rather than starting exactly at
+// "now": logged timeline entries are inherently backward-looking (you log
+// what you did, dated today or earlier), so a window that only ever
+// looked forward would never have anything to show for the "entries this
+// week" detail panel outside the very first week.
+private const val WINDOW_MONTHS_BACK = 2L
+private const val WINDOW_MONTHS_FORWARD = 22L
 
 /**
  * Builds the multi-month care timeline (range activities = phase windows,
@@ -90,8 +99,8 @@ private const val WINDOW_MONTHS = 24L
  * faithful "use what already exists" choice here.
  */
 class CareTimelineViewModel(private val container: AppContainer) : ViewModel() {
-    private val windowStart: LocalDate = LocalDate.now().withDayOfMonth(1)
-    private val windowEnd: LocalDate = windowStart.plusMonths(WINDOW_MONTHS).minusDays(1)
+    private val windowStart: LocalDate = LocalDate.now().withDayOfMonth(1).minusMonths(WINDOW_MONTHS_BACK)
+    private val windowEnd: LocalDate = LocalDate.now().withDayOfMonth(1).plusMonths(WINDOW_MONTHS_FORWARD).minusDays(1)
     private val weeks: List<WeekInfo> = buildWeeks(windowStart, windowEnd)
 
     var selectedWeek by mutableIntStateOf(weekIndexFor(LocalDate.now(), windowStart, weeks))
@@ -114,12 +123,17 @@ class CareTimelineViewModel(private val container: AppContainer) : ViewModel() {
         RawFirst(plants, reminderTypes, phaseTypes, phaseWindows, reminderRules)
     }
 
-    val uiState: StateFlow<CareTimelineUiState> = combine(rawData, container.reminderStateRepository.observeAll()) { first, states ->
+    val uiState: StateFlow<CareTimelineUiState> = combine(
+        rawData,
+        container.reminderStateRepository.observeAll(),
+        container.timelineRepository.observeAllInRange(windowStart.toString(), windowEnd.toString()),
+    ) { first, states, timelineEntries ->
         buildUiState(
             RawData(first.plants, first.reminderTypes, first.phaseTypes, first.phaseWindows, first.reminderRules, states),
             weeks,
             windowStart,
             windowEnd,
+            timelineEntries,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), CareTimelineUiState())
 
@@ -138,6 +152,7 @@ class CareTimelineViewModel(private val container: AppContainer) : ViewModel() {
             plants.forEach { plant ->
                 container.reminderRuleRepository.pullSyncForPlant(plant.localId)
                 container.phaseWindowRepository.pullSyncForPlant(plant.localId)
+                container.timelineRepository.pullSyncForPlant(plant.localId)
             }
             isRefreshing = false
         }
@@ -196,7 +211,13 @@ private fun weekIndexFor(date: LocalDate, windowStart: LocalDate, weeks: List<We
 private fun parseColor(hex: String?, fallback: Color): Color =
     hex?.let { runCatching { Color(android.graphics.Color.parseColor(it)) }.getOrNull() } ?: fallback
 
-private fun buildUiState(raw: RawData, weeks: List<WeekInfo>, windowStart: LocalDate, windowEnd: LocalDate): CareTimelineUiState {
+private fun buildUiState(
+    raw: RawData,
+    weeks: List<WeekInfo>,
+    windowStart: LocalDate,
+    windowEnd: LocalDate,
+    timelineEntries: List<TimelineEventWithPhotos>,
+): CareTimelineUiState {
     val plantsById = raw.plants.associateBy { it.localId }
     val phaseTypesById = raw.phaseTypes.associateBy { it.localId }
     val reminderTypesById = raw.reminderTypes.associateBy { it.localId }
@@ -264,5 +285,6 @@ private fun buildUiState(raw: RawData, weeks: List<WeekInfo>, windowStart: Local
         events = events,
         allPlants = raw.plants,
         allReminderTypes = raw.reminderTypes,
+        timelineEntries = timelineEntries,
     )
 }
