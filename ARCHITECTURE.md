@@ -411,40 +411,58 @@ existing mutation in the codebase, not an exception.
 
 ## Android
 
-`android/` has a toolchain scaffold, an app shell, a complete data layer,
-and every screen from the plan's read/write phase (phases 1–4 of the build
-plan) -- only offline writes (the outbox/write-queue) and the
+`android/` has a toolchain scaffold, an app shell, every screen from the
+plan (phases 1–4), and a full offline write queue (phase 5) -- only the
 Android-native additions (notifications, camera capture, widget) remain.
-Built so far: a Catppuccin-themed adaptive nav shell (bottom bar in
-portrait / rail in landscape, icons-only, 5 destinations mirroring the
-web's nav); an optional server connection (URL + API key, Keystore-
-encrypted, managed from Settings rather than a login gate — the app works
-fully standalone); a Room database mirroring every server entity
-(local-ID-first, server-ID nullable and lazily resolved); a Retrofit
-client (`LunentousApi`) covering the full REST surface documented above;
-repositories that read from Room and write through to the network when
-connected, or straight to Room (local-only) when not, resolving related
-entities' server IDs internally so callers only ever pass local IDs — no
-outbox/write-queue yet, that's a later phase; a Dashboard screen (overdue/
-next-tasks lists, plant grid, mark-done, pull-to-refresh); a Plant Detail
-screen (hero card with archive/unarchive, reminder rules, phase windows,
-and a timeline feed, each with a shared Compose `ModalBottomSheet`
-create/edit form — collapsed from the web's multi-step wizard into a
-single scrollable sheet, and with photo capture/upload deferred to the
-camera-capture phase); a Calendar screen (month grid with due/projected/
-logged markers and phase-window shading, driven by a Kotlin port of the
-server's interval-resolution date math, adapted to phone-sized cells with
-dot markers instead of the web's text-label pills, and a day-tap detail
-panel instead of an inline create form); shared Reminder Types/Phase Types
+
+Screens: a Catppuccin-themed adaptive nav shell (bottom bar in portrait /
+rail in landscape, icons-only, 5 destinations mirroring the web's nav); an
+optional server connection (URL + API key, Keystore-encrypted, managed
+from Settings rather than a login gate — the app works fully standalone);
+Dashboard (overdue/next-tasks lists, plant grid, mark-done, pull-to-
+refresh); Plant Detail (hero card with archive/unarchive, reminder rules,
+phase windows, and a timeline feed, each with a shared Compose
+`ModalBottomSheet` create/edit form — collapsed from the web's multi-step
+wizard into a single scrollable sheet, photo capture/upload deferred to
+the camera-capture phase); Calendar (month grid with due/projected/logged
+markers and phase-window shading, driven by a Kotlin port of the server's
+interval-resolution date math, adapted to phone-sized cells with dot
+markers instead of the web's text-label pills, and a day-tap detail panel
+instead of an inline create form); shared Reminder Types/Phase Types
 screens (usage counts computed locally from Room instead of the server's
-join-based count, so they stay correct offline); and Settings' API key
-management + backup export (streamed to a user-chosen file via Storage
-Access Framework, since there's no browser download to fall back on).
+join-based count); Settings' API key management + backup export (streamed
+to a user-chosen file via Storage Access Framework).
+
+Data layer: a Room database mirroring every server entity (local-ID-first,
+server-ID nullable and lazily resolved) and a Retrofit client
+(`LunentousApi`) covering the full REST surface documented above. Every
+write (all 6 write-capable repositories: Plant, ReminderType, PhaseType,
+ReminderRule, PhaseWindow, TimelineEvent) now goes local-first through a
+single serial FIFO outbox (`OutboxOperationEntity`, processed strictly in
+insertion order so a child op can never run before its parent's own
+CREATE has resolved a serverId one way or another) rather than blocking on
+the network -- online and offline behave identically from the UI's
+perspective. `OutboxProcessor` dispatches each op back to the repository
+that enqueued it (each implements `OutboxHandler` for its own entity
+type), classifying failures into non-retryable (mark FAILED, keep going),
+retryable (stop the queue, `OutboxSyncWorker` returns `Result.retry()` for
+WorkManager's own backoff), and 401 (flags `SessionStore.reauthRequired`).
+Deletable entities tombstone (`deleted=true`) rather than hard-deleting
+until their DELETE op actually succeeds, since the processor still needs
+the row's serverId when it runs. `ProvisionalDueDateCalculator` is a
+direct port of `recompute.ts`'s baseline logic, run synchronously on any
+local write that would trigger server recompute for instant feedback
+(`source = LOCAL_PROVISIONAL`, unconditionally overwritten by the next
+server pull). A `SyncStatusBar` in `MainScaffold`'s topBar and a Sync
+Issues screen (Retry/Discard per failed op) surface all this; connecting
+for the first time with local-only data already present pushes it
+(free, since it was already queued) then runs a one-time case-insensitive
+duplicate-plant-name scan.
+
 See `android/README.md` for the (sudo-free) toolchain setup and how to
 build/install on a physical device, and the architecture plan this is
-being built from for the full design (the offline-first outbox/conflict/
-provisional-due-date design, the initial-connect merge strategy, and the
-native-additions work still ahead).
+being built from for the full design and the native-additions work still
+ahead.
 
 The original spec's design for this app was on-device `WorkManager` polling
 using `reminder_states.notified`; the `notified` column and the
