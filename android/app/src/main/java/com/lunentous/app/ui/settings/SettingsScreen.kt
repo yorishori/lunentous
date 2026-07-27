@@ -15,9 +15,13 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,6 +38,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.lunentous.app.data.local.entity.PlantEntity
 import com.lunentous.app.data.remote.dto.ApiKeyDto
+import com.lunentous.app.data.settings.ThemeVariant
 import com.lunentous.app.di.AppContainer
 import com.lunentous.app.ui.theme.LunentousExtendedTheme
 import java.time.LocalDate
@@ -65,6 +70,16 @@ fun SettingsScreen(container: AppContainer) {
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text("Settings", style = MaterialTheme.typography.headlineSmall)
+
+        Card(shape = MaterialTheme.shapes.medium) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text("Appearance", style = MaterialTheme.typography.titleMedium)
+                AppearancePicker(container)
+            }
+        }
 
         Card(shape = MaterialTheme.shapes.medium) {
             Column(
@@ -117,6 +132,28 @@ fun SettingsScreen(container: AppContainer) {
         // Notification schedule and sync status (the latter lives in
         // MainScaffold's SyncStatusBar / the Sync Issues screen) land in
         // later build phases.
+    }
+}
+
+/** M3's segmented button is the standard idiom for "pick exactly one of a
+ * few options" -- Catppuccin's two palettes plus a System option that
+ * follows the device's own light/dark setting (the original, still-default
+ * behavior; see AppearanceStore). */
+@Composable
+private fun AppearancePicker(container: AppContainer) {
+    val selected by container.appearanceStore.themeVariant.collectAsState()
+    val options = listOf(ThemeVariant.SYSTEM to "System", ThemeVariant.MOCHA to "Mocha", ThemeVariant.LATTE to "Latte")
+
+    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+        options.forEachIndexed { index, (variant, label) ->
+            SegmentedButton(
+                selected = selected == variant,
+                onClick = { container.appearanceStore.setThemeVariant(variant) },
+                shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+            ) {
+                Text(label)
+            }
+        }
     }
 }
 

@@ -16,11 +16,13 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.lunentous.app.R
+import com.lunentous.app.data.settings.ThemeVariant
 
 /**
  * Direct port of web/src/index.css's design tokens. Two palettes -- Catppuccin
- * Mocha (dark) and Latte (light) -- switched automatically on system theme,
- * same as the web's `prefers-color-scheme` behavior (no in-app toggle).
+ * Mocha (dark) and Latte (light) -- either following the system light/dark
+ * setting or pinned explicitly via Settings' appearance picker (see
+ * AppearanceStore/ThemeVariant).
  */
 data class LunentousColors(
     val bg: Color,
@@ -114,37 +116,53 @@ private val LunentousShapes = Shapes(
 )
 
 @Composable
-fun LunentousTheme(content: @Composable () -> Unit) {
-    val dark = isSystemInDarkTheme()
+fun LunentousTheme(themeVariant: ThemeVariant = ThemeVariant.SYSTEM, content: @Composable () -> Unit) {
+    val dark = when (themeVariant) {
+        ThemeVariant.SYSTEM -> isSystemInDarkTheme()
+        ThemeVariant.MOCHA -> true
+        ThemeVariant.LATTE -> false
+    }
     val colors = if (dark) MochaColors else LatteColors
 
+    // Fills out the full M3 role set (not just the handful with a direct
+    // web CSS-token equivalent) so components that read secondary/
+    // tertiary/container/surfaceContainer roles -- segmented buttons,
+    // filled-tonal buttons, the nav rail's selected-item indicator, etc. --
+    // stay on-palette instead of falling back to M3's default Material You
+    // purple/teal. Containers reuse surfaceHover as a neutral base with the
+    // relevant accent hue as their "on" color, rather than inventing new
+    // hardcoded tones beyond LunentousColors' existing set.
     val materialScheme = if (dark) {
         darkColorScheme(
-            primary = colors.accent,
-            onPrimary = colors.accentText,
-            background = colors.bg,
-            onBackground = colors.text,
-            surface = colors.surface,
-            onSurface = colors.text,
-            surfaceVariant = colors.surfaceHover,
-            onSurfaceVariant = colors.textMuted,
-            outline = colors.border,
-            error = colors.overdue,
-            onError = colors.accentText,
+            primary = colors.accent, onPrimary = colors.accentText,
+            primaryContainer = colors.surfaceHover, onPrimaryContainer = colors.accent,
+            secondary = colors.textMuted, onSecondary = colors.bg,
+            secondaryContainer = colors.surfaceHover, onSecondaryContainer = colors.text,
+            tertiary = colors.ok, onTertiary = colors.accentText,
+            tertiaryContainer = colors.surfaceHover, onTertiaryContainer = colors.ok,
+            background = colors.bg, onBackground = colors.text,
+            surface = colors.surface, onSurface = colors.text,
+            surfaceVariant = colors.surfaceHover, onSurfaceVariant = colors.textMuted,
+            outline = colors.border, outlineVariant = colors.border,
+            error = colors.overdue, onError = colors.accentText,
+            errorContainer = colors.surfaceHover, onErrorContainer = colors.overdue,
+            surfaceContainer = colors.surface, surfaceContainerLow = colors.bg, surfaceContainerHigh = colors.surfaceHover,
         )
     } else {
         lightColorScheme(
-            primary = colors.accent,
-            onPrimary = colors.accentText,
-            background = colors.bg,
-            onBackground = colors.text,
-            surface = colors.surface,
-            onSurface = colors.text,
-            surfaceVariant = colors.surfaceHover,
-            onSurfaceVariant = colors.textMuted,
-            outline = colors.border,
-            error = colors.overdue,
-            onError = colors.accentText,
+            primary = colors.accent, onPrimary = colors.accentText,
+            primaryContainer = colors.surfaceHover, onPrimaryContainer = colors.accent,
+            secondary = colors.textMuted, onSecondary = colors.bg,
+            secondaryContainer = colors.surfaceHover, onSecondaryContainer = colors.text,
+            tertiary = colors.ok, onTertiary = colors.accentText,
+            tertiaryContainer = colors.surfaceHover, onTertiaryContainer = colors.ok,
+            background = colors.bg, onBackground = colors.text,
+            surface = colors.surface, onSurface = colors.text,
+            surfaceVariant = colors.surfaceHover, onSurfaceVariant = colors.textMuted,
+            outline = colors.border, outlineVariant = colors.border,
+            error = colors.overdue, onError = colors.accentText,
+            errorContainer = colors.surfaceHover, onErrorContainer = colors.overdue,
+            surfaceContainer = colors.surface, surfaceContainerLow = colors.bg, surfaceContainerHigh = colors.surfaceHover,
         )
     }
 
