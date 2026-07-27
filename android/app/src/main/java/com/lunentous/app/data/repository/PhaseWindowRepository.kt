@@ -4,6 +4,7 @@ import com.lunentous.app.data.auth.SessionStore
 import com.lunentous.app.data.local.dao.PhaseTypeDao
 import com.lunentous.app.data.local.dao.PhaseWindowDao
 import com.lunentous.app.data.local.dao.PlantDao
+import com.lunentous.app.data.local.dao.TypeUsageCount
 import com.lunentous.app.data.local.entity.PlantPhaseWindowEntity
 import com.lunentous.app.data.remote.LunentousApi
 import com.lunentous.app.data.remote.dto.CreatePhaseWindowRequest
@@ -18,6 +19,14 @@ class PhaseWindowRepository(
     private val sessionStore: SessionStore,
 ) {
     fun observeByPlant(plantLocalId: Long): Flow<List<PlantPhaseWindowEntity>> = dao.observeByPlant(plantLocalId)
+
+    /** Across every plant -- used by the Calendar screen. */
+    fun observeAll(): Flow<List<PlantPhaseWindowEntity>> = dao.observeAll()
+
+    /** Computed locally from what's in Room, per phase type -- used by the
+     * Phase Types screen instead of the server's usage_count (which is
+     * only present in its own list response). */
+    fun observeUsageCounts(): Flow<List<TypeUsageCount>> = dao.observeUsageCounts()
 
     suspend fun create(
         plantLocalId: Long,

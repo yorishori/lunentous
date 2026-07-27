@@ -5,6 +5,7 @@ import com.lunentous.app.data.local.dao.OverridePeriodDao
 import com.lunentous.app.data.local.dao.PlantDao
 import com.lunentous.app.data.local.dao.ReminderRuleDao
 import com.lunentous.app.data.local.dao.ReminderTypeDao
+import com.lunentous.app.data.local.dao.TypeUsageCount
 import com.lunentous.app.data.local.entity.OverridePeriodEntity
 import com.lunentous.app.data.local.entity.ReminderRuleEntity
 import com.lunentous.app.data.remote.LunentousApi
@@ -43,6 +44,18 @@ class ReminderRuleRepository(
         ruleDao.observeByPlant(plantLocalId).map { rules ->
             rules.map { rule -> ReminderRuleWithPeriods(rule, periodDao.getByRuleOnce(rule.localId)) }
         }
+
+    /** Across every plant, with override periods -- used by the Calendar
+     * screen to project future due dates. */
+    fun observeAll(): Flow<List<ReminderRuleWithPeriods>> =
+        ruleDao.observeAll().map { rules ->
+            rules.map { rule -> ReminderRuleWithPeriods(rule, periodDao.getByRuleOnce(rule.localId)) }
+        }
+
+    /** Computed locally from what's in Room, per reminder type -- used by
+     * the Reminder Types screen instead of the server's usage_count (which
+     * is only present in its own list response). */
+    fun observeUsageCounts(): Flow<List<TypeUsageCount>> = ruleDao.observeUsageCounts()
 
     suspend fun create(
         plantLocalId: Long,

@@ -70,4 +70,9 @@ private val ICON_MAP: Map<String, ImageVector> = mapOf(
 
 val DEFAULT_ICON: ImageVector = Icons.Filled.Grain
 
+/** Every pickable name, in the same curated order as web/src/lib/icons.ts's
+ * ICON_NAMES -- the DB stores the name string, so distinct entries here
+ * matter even where two names currently share a Material icon. */
+val ICON_NAMES: List<String> = ICON_MAP.keys.toList()
+
 fun iconFor(name: String?): ImageVector = name?.let { ICON_MAP[it] } ?: DEFAULT_ICON

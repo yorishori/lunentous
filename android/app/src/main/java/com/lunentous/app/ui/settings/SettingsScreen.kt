@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.lunentous.app.data.auth.SessionStore
+import com.lunentous.app.di.AppContainer
 
 /**
  * Web equivalent: pages/Settings.tsx, plus a "Server connection" section
@@ -31,7 +32,8 @@ import com.lunentous.app.data.auth.SessionStore
  * standalone (see the Android plan's "Server connection is optional").
  */
 @Composable
-fun SettingsScreen(sessionStore: SessionStore) {
+fun SettingsScreen(container: AppContainer) {
+    val sessionStore = container.sessionStore
     var connected by remember { mutableStateOf(sessionStore.hasSession()) }
 
     Column(

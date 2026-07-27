@@ -26,6 +26,12 @@ interface TimelineEventDao {
     )
     suspend fun getByPlantInRange(plantLocalId: Long, from: String, to: String): List<TimelineEventEntity>
 
+    /** Across every plant, for a date range -- used by Calendar so the
+     * visible month's entries come from one Flow instead of one per
+     * selected plant. */
+    @Query("SELECT * FROM timeline_events WHERE deleted = 0 AND eventDate >= :from AND eventDate <= :to")
+    fun observeAllInRange(from: String, to: String): Flow<List<TimelineEventEntity>>
+
     @Query("SELECT * FROM timeline_events WHERE localId = :localId")
     suspend fun getByLocalId(localId: Long): TimelineEventEntity?
 

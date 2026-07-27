@@ -11,6 +11,14 @@ interface PhaseWindowDao {
     @Query("SELECT * FROM plant_phase_windows WHERE deleted = 0 AND plantLocalId = :plantLocalId")
     fun observeByPlant(plantLocalId: Long): Flow<List<PlantPhaseWindowEntity>>
 
+    @Query("SELECT phaseTypeLocalId AS typeLocalId, COUNT(*) AS count FROM plant_phase_windows WHERE deleted = 0 GROUP BY phaseTypeLocalId")
+    fun observeUsageCounts(): Flow<List<TypeUsageCount>>
+
+    /** Across every plant -- used by Calendar to shade phase-window date
+     * ranges without one Flow per selected plant. */
+    @Query("SELECT * FROM plant_phase_windows WHERE deleted = 0")
+    fun observeAll(): Flow<List<PlantPhaseWindowEntity>>
+
     @Query("SELECT * FROM plant_phase_windows WHERE deleted = 0 AND plantLocalId = :plantLocalId")
     suspend fun getByPlantOnce(plantLocalId: Long): List<PlantPhaseWindowEntity>
 

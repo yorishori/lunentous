@@ -11,6 +11,14 @@ interface ReminderRuleDao {
     @Query("SELECT * FROM reminder_rules WHERE deleted = 0 AND plantLocalId = :plantLocalId")
     fun observeByPlant(plantLocalId: Long): Flow<List<ReminderRuleEntity>>
 
+    @Query("SELECT reminderTypeLocalId AS typeLocalId, COUNT(*) AS count FROM reminder_rules WHERE deleted = 0 GROUP BY reminderTypeLocalId")
+    fun observeUsageCounts(): Flow<List<TypeUsageCount>>
+
+    /** Across every plant -- used by Calendar to project due dates without
+     * one Flow per selected plant. */
+    @Query("SELECT * FROM reminder_rules WHERE deleted = 0")
+    fun observeAll(): Flow<List<ReminderRuleEntity>>
+
     @Query("SELECT * FROM reminder_rules WHERE localId = :localId")
     suspend fun getByLocalId(localId: Long): ReminderRuleEntity?
 

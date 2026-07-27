@@ -35,6 +35,8 @@ import com.lunentous.app.ui.plant.PlantDetailScreen
 import com.lunentous.app.ui.plant.PlantFormSheet
 import com.lunentous.app.ui.plant.PlantFormTarget
 import com.lunentous.app.ui.settings.SettingsScreen
+import com.lunentous.app.ui.types.PhaseTypesScreen
+import com.lunentous.app.ui.types.ReminderTypesScreen
 
 private const val PLANT_LOCAL_ID_ARG = "plantLocalId"
 private const val PLANT_DETAIL_ROUTE = "plant_detail/{$PLANT_LOCAL_ID_ARG}"
@@ -93,16 +95,17 @@ fun MainScaffold(container: AppContainer) {
                 NavDestination.entries.forEach { destination ->
                     composable(destination.route) {
                         when (destination) {
-                            NavDestination.Settings -> SettingsScreen(sessionStore = container.sessionStore)
+                            NavDestination.Settings -> SettingsScreen(container = container)
                             NavDestination.Dashboard -> DashboardScreen(
                                 container = container,
                                 onPlantClick = { plantLocalId -> navController.navigate(plantDetailRoute(plantLocalId)) },
                                 onAddPlant = { plantFormTarget = PlantFormTarget.Create },
                             )
-                            else -> {
-                                // Real screens land in later build phases -- see
-                                // the Android plan's Build ordering. This proves
-                                // the nav shell works end to end in the meantime.
+                            NavDestination.ReminderTypes -> ReminderTypesScreen(container = container)
+                            NavDestination.PhaseTypes -> PhaseTypesScreen(container = container)
+                            NavDestination.Calendar -> {
+                                // Lands in the next build step -- see the Android
+                                // plan's Build ordering.
                                 PlaceholderScreen(destination.label)
                             }
                         }
