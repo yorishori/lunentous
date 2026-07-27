@@ -2,6 +2,8 @@ package com.lunentous.app.ui.plant
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -41,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import com.lunentous.app.data.local.entity.OverridePeriodEntity
 import com.lunentous.app.data.local.entity.ReminderTypeEntity
 import com.lunentous.app.data.repository.ReminderRuleWithPeriods
+import com.lunentous.app.ui.components.MonthDayPicker
 import com.lunentous.app.ui.theme.LunentousExtendedTheme
 
 /**
@@ -144,18 +147,17 @@ fun ReminderRuleFormSheet(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun OverridePeriodRow(period: OverridePeriodEntity, onChange: (OverridePeriodEntity) -> Unit, onRemove: () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
-        NumberField(period.startMonth, { onChange(period.copy(startMonth = it)) }, "Start mo", 60.dp)
-        Spacer(Modifier.width(4.dp))
-        NumberField(period.startDay, { onChange(period.copy(startDay = it)) }, "Day", 56.dp)
-        Text(" – ", modifier = Modifier.padding(horizontal = 2.dp))
-        NumberField(period.endMonth, { onChange(period.copy(endMonth = it)) }, "End mo", 60.dp)
-        Spacer(Modifier.width(4.dp))
-        NumberField(period.endDay, { onChange(period.copy(endDay = it)) }, "Day", 56.dp)
-        Spacer(Modifier.width(4.dp))
+    FlowRow(
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+    ) {
+        MonthDayPicker(month = period.startMonth, day = period.startDay, onChange = { m, d -> onChange(period.copy(startMonth = m, startDay = d)) })
+        Text("–", modifier = Modifier.padding(horizontal = 2.dp))
+        MonthDayPicker(month = period.endMonth, day = period.endDay, onChange = { m, d -> onChange(period.copy(endMonth = m, endDay = d)) })
         NumberField(period.intervalDays ?: 0, { onChange(period.copy(intervalDays = it.takeIf { d -> d > 0 })) }, "Every d", 64.dp)
         IconButton(onClick = onRemove) {
             Icon(Icons.Filled.Close, contentDescription = "Remove override")

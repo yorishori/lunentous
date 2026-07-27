@@ -6,9 +6,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenuItem
@@ -29,11 +26,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.lunentous.app.data.local.entity.PhaseTypeEntity
 import com.lunentous.app.data.local.entity.PlantPhaseWindowEntity
+import com.lunentous.app.ui.components.MonthDayPicker
 import com.lunentous.app.ui.theme.LunentousExtendedTheme
 
 /** Shared add/edit sheet for phase windows, mirroring
@@ -84,14 +80,10 @@ fun PhaseWindowFormSheet(
             }
 
             Text("Window", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 16.dp, bottom = 6.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                NumberField(startMonth, { startMonth = it }, "Start mo", 66.dp)
-                Spacer(Modifier.padding(start = 4.dp))
-                NumberField(startDay, { startDay = it }, "Day", 56.dp)
-                Text(" – ", modifier = Modifier.padding(horizontal = 4.dp))
-                NumberField(endMonth, { endMonth = it }, "End mo", 66.dp)
-                Spacer(Modifier.padding(start = 4.dp))
-                NumberField(endDay, { endDay = it }, "Day", 56.dp)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                MonthDayPicker(month = startMonth, day = startDay, onChange = { m, d -> startMonth = m; startDay = d })
+                Text("–")
+                MonthDayPicker(month = endMonth, day = endDay, onChange = { m, d -> endMonth = m; endDay = d })
             }
 
             OutlinedTextField(
@@ -120,16 +112,4 @@ fun PhaseWindowFormSheet(
             }
         }
     }
-}
-
-@Composable
-private fun NumberField(value: Int, onChange: (Int) -> Unit, label: String, width: Dp) {
-    OutlinedTextField(
-        value = if (value == 0) "" else value.toString(),
-        onValueChange = { text -> onChange(text.filter { it.isDigit() }.toIntOrNull() ?: 0) },
-        label = { Text(label, style = MaterialTheme.typography.labelSmall) },
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        modifier = Modifier.width(width),
-    )
 }
