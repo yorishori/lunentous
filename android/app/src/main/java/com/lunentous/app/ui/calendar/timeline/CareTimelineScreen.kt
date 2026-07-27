@@ -2,6 +2,7 @@ package com.lunentous.app.ui.calendar.timeline
 
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -243,13 +245,41 @@ private fun TimelineGrid(
     selectedWeek: Int,
     onSelectWeek: (Int) -> Unit,
 ) {
+    val colors = LunentousExtendedTheme.colors
     val today = remember { LocalDate.now() }
-    Column(modifier = Modifier.horizontalScroll(scrollState), verticalArrangement = Arrangement.spacedBy(ROW_GAP)) {
-        MonthHeaderRow(uiState.weeks, selectedWeek, onSelectWeek)
-        uiState.allPlants.forEach { plant ->
-            PlantLane(plant, uiState, activitiesById, selectedWeek, onSelectWeek)
+    val plantCount = uiState.allPlants.size
+    // Exactly mirrors the row sequence below (header, one per plant, tick)
+    // so the overlay's height lines up with the real content precisely --
+    // computed instead of measured, since every row height here is
+    // already a fixed constant.
+    val totalHeight = MONTH_HEADER_HEIGHT + WEEK_TICK_HEIGHT +
+        PLANT_ROW_HEIGHT * plantCount +
+        ROW_GAP * (plantCount + 1)
+
+    Box(modifier = Modifier.horizontalScroll(scrollState)) {
+        // One continuous rounded highlight for the whole selected column
+        // (month header through the week-tick row), instead of each row
+        // drawing its own separate selected box -- drawn first so the
+        // actual row content (pills/dots/text) paints on top of it.
+        if (uiState.weeks.isNotEmpty()) {
+            Box(
+                modifier = Modifier
+                    .offset(x = WEEK_WIDTH * selectedWeek)
+                    .width(WEEK_WIDTH)
+                    .height(totalHeight)
+                    .clip(RoundedCornerShape(percent = 50))
+                    .background(colors.accentSoft)
+                    .border(1.dp, colors.accent, RoundedCornerShape(percent = 50)),
+            )
         }
-        WeekTickRow(uiState.weeks, selectedWeek, today, onSelectWeek)
+
+        Column(verticalArrangement = Arrangement.spacedBy(ROW_GAP)) {
+            MonthHeaderRow(uiState.weeks, selectedWeek, onSelectWeek)
+            uiState.allPlants.forEach { plant ->
+                PlantLane(plant, uiState, activitiesById, selectedWeek, onSelectWeek)
+            }
+            WeekTickRow(uiState.weeks, selectedWeek, today, onSelectWeek)
+        }
     }
 }
 
@@ -364,18 +394,12 @@ private fun WeekTickRow(weeks: List<WeekInfo>, selectedWeek: Int, today: LocalDa
     }
 }
 
-/** Shared selection-indicator modifier -- an inset border rather than a
- * background swap, since lane cells already carry activity color; also
- * exposes `selected` via semantics for screen reader/switch access. */
+/** No visual styling here anymore -- the whole selected column is drawn
+ * once as a single overlay in TimelineGrid (see totalHeight/offset
+ * there), not per-cell, so this only exposes `selected` via semantics for
+ * screen reader/switch access. */
 private fun Modifier.selectableCell(isSelected: Boolean): Modifier = this
     .semantics { selected = isSelected }
-    .then(
-        if (isSelected) {
-            Modifier.background(Color.Gray.copy(alpha = 0.12f))
-        } else {
-            Modifier
-        },
-    )
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
