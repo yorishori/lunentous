@@ -77,7 +77,17 @@ export default function CareTimelineGrid({ weeks, activities, plants, ranges, ev
         </div>
 
         <div ref={scrollContainerRef} style={{ overflowX: "auto", flex: 1 }}>
-          <div style={{ width: `${weeks.length * WEEK_WIDTH_REM}rem`, display: "flex", flexDirection: "column", gap: `${ROW_GAP_REM}rem` }}>
+          <div style={{ width: `${weeks.length * WEEK_WIDTH_REM}rem`, display: "flex", flexDirection: "column", gap: `${ROW_GAP_REM}rem`, position: "relative" }}>
+            {/* One continuous rounded highlight for the whole selected
+                column, instead of each row drawing its own separate box --
+                see .care-timeline-selection in index.css. */}
+            {weeks[selectedWeek] && (
+              <div
+                className="care-timeline-selection"
+                style={{ left: `${selectedWeek * WEEK_WIDTH_REM}rem`, width: `${WEEK_WIDTH_REM}rem` }}
+              />
+            )}
+
             {/* Month header row */}
             <div style={{ display: "flex", height: MONTH_HEADER_HEIGHT }}>
               {weeks.map((week) => (
@@ -207,7 +217,7 @@ function WeekCell({
   return (
     <button
       type="button"
-      className={`care-timeline-cell${selected ? " selected" : ""}`}
+      className="care-timeline-cell"
       style={{ width: `${WEEK_WIDTH_REM}rem`, height, flexShrink: 0 }}
       onClick={() => onSelect(week.index)}
       aria-selected={selected}
