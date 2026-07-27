@@ -1,11 +1,10 @@
 import type { OverridePeriod } from "../api/types";
+import MonthDayPicker from "./MonthDayPicker";
 
 interface Props {
   periods: OverridePeriod[];
   onChange: (periods: OverridePeriod[]) => void;
 }
-
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 export default function OverridePeriodEditor({ periods, onChange }: Props) {
   function update(index: number, patch: Partial<OverridePeriod>) {
@@ -24,36 +23,16 @@ export default function OverridePeriodEditor({ periods, onChange }: Props) {
     <div>
       {periods.map((p, i) => (
         <div key={i} style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.5rem", flexWrap: "wrap" }}>
-          <select value={p.start_month} onChange={(e) => update(i, { start_month: Number(e.target.value) })}>
-            {MONTHS.map((m, idx) => (
-              <option key={m} value={idx + 1}>
-                {m}
-              </option>
-            ))}
-          </select>
-          <input
-            type="number"
-            min={1}
-            max={31}
-            value={p.start_day}
-            onChange={(e) => update(i, { start_day: Number(e.target.value) })}
-            style={{ width: "3.5rem" }}
+          <MonthDayPicker
+            month={p.start_month}
+            day={p.start_day}
+            onChange={(start_month, start_day) => update(i, { start_month, start_day })}
           />
           <span>to</span>
-          <select value={p.end_month} onChange={(e) => update(i, { end_month: Number(e.target.value) })}>
-            {MONTHS.map((m, idx) => (
-              <option key={m} value={idx + 1}>
-                {m}
-              </option>
-            ))}
-          </select>
-          <input
-            type="number"
-            min={1}
-            max={31}
-            value={p.end_day}
-            onChange={(e) => update(i, { end_day: Number(e.target.value) })}
-            style={{ width: "3.5rem" }}
+          <MonthDayPicker
+            month={p.end_month}
+            day={p.end_day}
+            onChange={(end_month, end_day) => update(i, { end_month, end_day })}
           />
           <span>@</span>
           <input

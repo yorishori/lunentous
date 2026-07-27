@@ -1044,6 +1044,77 @@ input[type="radio"] {
   background: var(--surface-hover);
 }
 
+/* ---------- Month/day picker ---------- */
+
+.month-day-picker {
+  position: relative;
+  display: inline-block;
+}
+
+.month-day-picker-trigger {
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  cursor: pointer;
+  min-width: 5.5rem;
+  text-align: left;
+  color: var(--text);
+}
+
+.month-day-picker-trigger:hover {
+  border-color: var(--accent);
+}
+
+.month-day-picker-dropdown {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  left: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 20px 40px -18px hsl(var(--shadow-color) / 0.6);
+  padding: 0.6rem;
+  z-index: 30;
+  width: 15rem;
+  animation: pop-in 0.15s var(--ease);
+}
+
+.month-day-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.month-day-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.2rem;
+}
+
+.month-day-picker-cell {
+  aspect-ratio: 1;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  cursor: pointer;
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+}
+
+.month-day-picker-cell:hover {
+  background: var(--surface-hover);
+}
+
+.month-day-picker-cell.selected {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
 /* ---------- Calendar events & detail panel ---------- */
 
 .calendar-phase-band {

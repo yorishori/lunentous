@@ -4,6 +4,7 @@ import { apiFetch, ApiError } from "../api/client";
 import type { PhaseType, PhaseWindow } from "../api/types";
 import { useToast } from "./Toast";
 import Spinner from "./Spinner";
+import MonthDayPicker from "./MonthDayPicker";
 
 interface Props {
   plantId: number;
@@ -11,8 +12,6 @@ interface Props {
   existingWindow?: PhaseWindow;
   onDone: () => void;
 }
-
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 export default function PhaseWindowForm({ plantId, phaseTypes, existingWindow, onDone }: Props) {
   const queryClient = useQueryClient();
@@ -76,23 +75,23 @@ export default function PhaseWindowForm({ plantId, phaseTypes, existingWindow, o
       <div className="form-row">
         <label>Window</label>
         <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
-          <select value={startMonth} onChange={(e) => setStartMonth(Number(e.target.value))}>
-            {MONTHS.map((m, idx) => (
-              <option key={m} value={idx + 1}>
-                {m}
-              </option>
-            ))}
-          </select>
-          <input type="number" min={1} max={31} value={startDay} onChange={(e) => setStartDay(Number(e.target.value))} style={{ width: "3.5rem" }} />
+          <MonthDayPicker
+            month={startMonth}
+            day={startDay}
+            onChange={(m, d) => {
+              setStartMonth(m);
+              setStartDay(d);
+            }}
+          />
           <span>to</span>
-          <select value={endMonth} onChange={(e) => setEndMonth(Number(e.target.value))}>
-            {MONTHS.map((m, idx) => (
-              <option key={m} value={idx + 1}>
-                {m}
-              </option>
-            ))}
-          </select>
-          <input type="number" min={1} max={31} value={endDay} onChange={(e) => setEndDay(Number(e.target.value))} style={{ width: "3.5rem" }} />
+          <MonthDayPicker
+            month={endMonth}
+            day={endDay}
+            onChange={(m, d) => {
+              setEndMonth(m);
+              setEndDay(d);
+            }}
+          />
         </div>
       </div>
       <div className="form-row">
