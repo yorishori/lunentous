@@ -192,12 +192,12 @@ private fun NotificationTimeSection(container: AppContainer) {
     ) {
         Text("Daily reminder check", style = MaterialTheme.typography.bodyMedium)
         OutlinedButton(onClick = { showPicker = true }) {
-            Text(time.format(DateTimeFormatter.ofPattern("h:mm a")))
+            Text(time.format(DateTimeFormatter.ofPattern("HH:mm")))
         }
     }
 
     if (showPicker) {
-        val pickerState = rememberTimePickerState(initialHour = time.hour, initialMinute = time.minute, is24Hour = false)
+        val pickerState = rememberTimePickerState(initialHour = time.hour, initialMinute = time.minute, is24Hour = true)
         AlertDialog(
             onDismissRequest = { showPicker = false },
             confirmButton = {
