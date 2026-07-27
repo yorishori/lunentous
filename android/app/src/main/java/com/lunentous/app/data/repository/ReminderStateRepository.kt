@@ -31,6 +31,8 @@ class ReminderStateRepository(
 
     fun observeAll(): Flow<List<ReminderStateEntity>> = dao.observeAll()
 
+    suspend fun getAllOnce(): List<ReminderStateEntity> = dao.getAllOnce()
+
     /** Global pull -- used by the dashboard's overdue/next-tasks lists. */
     suspend fun pullSyncAll() {
         if (!sessionStore.hasSession()) return

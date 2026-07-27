@@ -57,6 +57,18 @@
                 android:resource="@xml/shortcuts" />
         </activity>
 
+        <!-- Home screen widget, see ui/widget/LunentousWidget.kt. -->
+        <receiver
+            android:name=".ui.widget.LunentousWidgetReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/lunentous_widget_info" />
+        </receiver>
+
         <!-- Grants the system camera app temporary access to write into
              our app-private files/photos/ dir, see res/xml/file_paths.xml
              and ui/camera/CameraCapture.kt. -->

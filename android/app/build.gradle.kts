@@ -79,5 +79,8 @@ dependencies {
     // server-hosted (http URL) and locally captured (file URI).
     implementation("io.coil-kt:coil-compose:2.7.0")
 
+    // Home screen widget (overdue/next reminders + one-tap mark-done).
+    implementation("androidx.glance:glance-appwidget:1.1.1")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

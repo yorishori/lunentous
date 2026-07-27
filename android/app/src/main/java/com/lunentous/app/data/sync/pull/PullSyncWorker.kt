@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.lunentous.app.LunentousApplication
+import com.lunentous.app.ui.widget.refreshLunentousWidget
 import kotlinx.coroutines.flow.first
 
 /**
@@ -33,6 +34,7 @@ class PullSyncWorker(context: Context, params: WorkerParameters) : CoroutineWork
                 container.timelineRepository.pullSyncForPlant(plant.localId)
             }
             container.reminderNotifier.checkAndNotify()
+            refreshLunentousWidget(applicationContext)
         }.fold(onSuccess = { Result.success() }, onFailure = { Result.retry() })
     }
 }

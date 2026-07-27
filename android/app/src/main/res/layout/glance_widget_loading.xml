@@ -1,0 +1,14 @@
+<!-- Placeholder RemoteViews layout the widget host briefly shows before
+     LunentousWidget's own Compose-generated content replaces it; required
+     by the appwidget-provider's android:initialLayout, but never rendered
+     for more than a frame in practice. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ProgressBar
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center" />
+
+</FrameLayout>

@@ -128,6 +128,7 @@ class DashboardViewModel(private val container: AppContainer) : ViewModel() {
                 text = null,
             )
             reminderStateRepository.pullSyncForPlant(task.plantLocalId)
+            container.refreshWidget()
             isMarkingDone = false
             confirmingTask = null
         }

@@ -19,6 +19,7 @@ import com.lunentous.app.data.repository.TimelineRepository
 import com.lunentous.app.data.sync.dates.ProvisionalDueDateCalculator
 import com.lunentous.app.data.sync.outbox.OutboxProcessor
 import com.lunentous.app.data.sync.outbox.OutboxRepository
+import com.lunentous.app.ui.widget.refreshLunentousWidget
 
 /**
  * Manual DI -- no Hilt/Dagger. The app is small enough that a hand-wired
@@ -27,6 +28,7 @@ import com.lunentous.app.data.sync.outbox.OutboxRepository
  * structure notes.
  */
 class AppContainer(context: Context) {
+    private val appContext = context.applicationContext
     val sessionStore = SessionStore(context)
     val connectivityObserver = ConnectivityObserver(context.applicationContext)
 
@@ -114,4 +116,9 @@ class AppContainer(context: Context) {
         ),
         sessionStore,
     )
+
+    /** Called after any in-app mark-done/mutation that could change what
+     * the home screen widget shows (see ui/widget/LunentousWidget.kt) --
+     * PullSyncWorker refreshes it too, but that's up to ~4h stale otherwise. */
+    suspend fun refreshWidget() = refreshLunentousWidget(appContext)
 }

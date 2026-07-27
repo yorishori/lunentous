@@ -14,6 +14,12 @@ interface ReminderStateDao {
     @Query("SELECT * FROM reminder_states")
     fun observeAll(): Flow<List<ReminderStateEntity>>
 
+    /** One-shot equivalent of observeAll -- used by the home screen widget,
+     * which recomposes on its own update cycle rather than collecting a
+     * Flow (see ui/widget/LunentousWidget.kt). */
+    @Query("SELECT * FROM reminder_states")
+    suspend fun getAllOnce(): List<ReminderStateEntity>
+
     @Query("SELECT * FROM reminder_states WHERE plantLocalId = :plantLocalId AND reminderTypeLocalId = :reminderTypeLocalId")
     suspend fun getByPlantAndType(plantLocalId: Long, reminderTypeLocalId: Long): ReminderStateEntity?
 
