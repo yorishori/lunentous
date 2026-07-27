@@ -13,6 +13,7 @@ import com.lunentous.app.data.repository.ReminderRuleRepository
 import com.lunentous.app.data.repository.ReminderStateRepository
 import com.lunentous.app.data.repository.ReminderTypeRepository
 import com.lunentous.app.data.repository.TimelineRepository
+import com.lunentous.app.data.sync.dates.ProvisionalDueDateCalculator
 import com.lunentous.app.data.sync.outbox.OutboxRepository
 
 /**
@@ -39,6 +40,13 @@ class AppContainer(context: Context) {
 
     val outboxRepository = OutboxRepository(database.outboxDao(), gson)
 
+    private val provisionalDueDateCalculator = ProvisionalDueDateCalculator(
+        database.reminderRuleDao(),
+        database.overridePeriodDao(),
+        database.timelineEventDao(),
+        database.reminderStateDao(),
+    )
+
     val plantRepository = PlantRepository(database.plantDao(), api, sessionStore, outboxRepository, gson)
     val reminderTypeRepository = ReminderTypeRepository(database.reminderTypeDao(), api, sessionStore, outboxRepository, gson)
     val phaseTypeRepository = PhaseTypeRepository(database.phaseTypeDao(), api, sessionStore, outboxRepository, gson)
@@ -49,6 +57,9 @@ class AppContainer(context: Context) {
         database.reminderTypeDao(),
         api,
         sessionStore,
+        outboxRepository,
+        gson,
+        provisionalDueDateCalculator,
     )
     val reminderStateRepository = ReminderStateRepository(
         database.reminderStateDao(),
@@ -63,6 +74,8 @@ class AppContainer(context: Context) {
         database.phaseTypeDao(),
         api,
         sessionStore,
+        outboxRepository,
+        gson,
     )
     val timelineRepository = TimelineRepository(
         database.timelineEventDao(),

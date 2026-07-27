@@ -25,7 +25,7 @@ interface ReminderRuleDao {
     @Query("SELECT * FROM reminder_rules WHERE serverId = :serverId")
     suspend fun getByServerId(serverId: Long): ReminderRuleEntity?
 
-    @Query("SELECT * FROM reminder_rules WHERE plantLocalId = :plantLocalId AND reminderTypeLocalId = :reminderTypeLocalId")
+    @Query("SELECT * FROM reminder_rules WHERE deleted = 0 AND plantLocalId = :plantLocalId AND reminderTypeLocalId = :reminderTypeLocalId")
     suspend fun getByPlantAndType(plantLocalId: Long, reminderTypeLocalId: Long): ReminderRuleEntity?
 
     @Query("SELECT * FROM reminder_rules WHERE deleted = 0 AND plantLocalId = :plantLocalId")

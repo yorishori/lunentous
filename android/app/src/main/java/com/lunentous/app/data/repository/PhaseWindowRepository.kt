@@ -1,15 +1,31 @@
 package com.lunentous.app.data.repository
 
+import com.google.gson.Gson
 import com.lunentous.app.data.auth.SessionStore
 import com.lunentous.app.data.local.dao.PhaseTypeDao
 import com.lunentous.app.data.local.dao.PhaseWindowDao
 import com.lunentous.app.data.local.dao.PlantDao
 import com.lunentous.app.data.local.dao.TypeUsageCount
+import com.lunentous.app.data.local.entity.OutboxEntityType
+import com.lunentous.app.data.local.entity.OutboxOpType
+import com.lunentous.app.data.local.entity.OutboxOperationEntity
 import com.lunentous.app.data.local.entity.PlantPhaseWindowEntity
 import com.lunentous.app.data.remote.LunentousApi
 import com.lunentous.app.data.remote.dto.CreatePhaseWindowRequest
 import com.lunentous.app.data.remote.dto.PhaseWindowDto
+import com.lunentous.app.data.sync.outbox.OutboxHandler
+import com.lunentous.app.data.sync.outbox.OutboxRepository
+import com.lunentous.app.data.sync.outbox.OutboxResult
 import kotlinx.coroutines.flow.Flow
+
+private data class WindowPayload(
+    val phaseTypeLocalId: Long,
+    val startMonth: Int,
+    val startDay: Int,
+    val endMonth: Int,
+    val endDay: Int,
+    val notes: String?,
+)
 
 class PhaseWindowRepository(
     private val dao: PhaseWindowDao,
@@ -17,7 +33,11 @@ class PhaseWindowRepository(
     private val phaseTypeDao: PhaseTypeDao,
     private val api: LunentousApi,
     private val sessionStore: SessionStore,
-) {
+    private val outboxRepository: OutboxRepository,
+    private val gson: Gson,
+) : OutboxHandler {
+    override val entityType = OutboxEntityType.PHASE_WINDOW
+
     fun observeByPlant(plantLocalId: Long): Flow<List<PlantPhaseWindowEntity>> = dao.observeByPlant(plantLocalId)
 
     /** Across every plant -- used by the Calendar screen. */
@@ -37,27 +57,19 @@ class PhaseWindowRepository(
         endDay: Int,
         notes: String?,
     ): Result<PlantPhaseWindowEntity> = runCatching {
-        val plantServerId = plantDao.getByLocalId(plantLocalId)?.serverId
-        val phaseTypeServerId = phaseTypeDao.getByLocalId(phaseTypeLocalId)?.serverId
-
-        if (sessionStore.hasSession() && plantServerId != null && phaseTypeServerId != null) {
-            val dto = api.createPhaseWindow(
-                plantServerId,
-                CreatePhaseWindowRequest(phaseTypeServerId, startMonth, startDay, endMonth, endDay, notes),
-            )
-            upsertFromDto(dto, plantLocalId, phaseTypeLocalId)
-        } else {
-            val entity = PlantPhaseWindowEntity(
-                plantLocalId = plantLocalId,
-                phaseTypeLocalId = phaseTypeLocalId,
-                startMonth = startMonth,
-                startDay = startDay,
-                endMonth = endMonth,
-                endDay = endDay,
-                notes = notes,
-            )
-            entity.copy(localId = dao.upsert(entity))
-        }
+        val entity = PlantPhaseWindowEntity(
+            plantLocalId = plantLocalId,
+            phaseTypeLocalId = phaseTypeLocalId,
+            startMonth = startMonth,
+            startDay = startDay,
+            endMonth = endMonth,
+            endDay = endDay,
+            notes = notes,
+            pendingSync = true,
+        )
+        val localId = dao.upsert(entity)
+        outboxRepository.enqueueCreate(entityType, localId, WindowPayload(phaseTypeLocalId, startMonth, startDay, endMonth, endDay, notes))
+        entity.copy(localId = localId)
     }
 
     suspend fun update(
@@ -70,36 +82,35 @@ class PhaseWindowRepository(
         notes: String?,
     ): Result<PlantPhaseWindowEntity> = runCatching {
         val existing = dao.getByLocalId(localId) ?: error("Phase window $localId not found locally")
-        val phaseTypeServerId = phaseTypeDao.getByLocalId(phaseTypeLocalId)?.serverId
-        if (sessionStore.hasSession() && existing.serverId != null && phaseTypeServerId != null) {
-            val dto = api.updatePhaseWindow(
-                existing.serverId,
-                CreatePhaseWindowRequest(phaseTypeServerId, startMonth, startDay, endMonth, endDay, notes),
-            )
-            upsertFromDto(dto, existing.plantLocalId, phaseTypeLocalId, preserveLocalId = localId)
-        } else {
-            val updated = existing.copy(
-                phaseTypeLocalId = phaseTypeLocalId,
-                startMonth = startMonth,
-                startDay = startDay,
-                endMonth = endMonth,
-                endDay = endDay,
-                notes = notes,
-                dirty = existing.serverId != null,
-            )
-            dao.upsert(updated)
-            updated
-        }
+        val updated = existing.copy(
+            phaseTypeLocalId = phaseTypeLocalId,
+            startMonth = startMonth,
+            startDay = startDay,
+            endMonth = endMonth,
+            endDay = endDay,
+            notes = notes,
+            dirty = existing.serverId != null,
+            pendingSync = true,
+        )
+        dao.upsert(updated)
+        outboxRepository.enqueueUpdate(entityType, localId, WindowPayload(phaseTypeLocalId, startMonth, startDay, endMonth, endDay, notes))
+        updated
     }
 
     suspend fun delete(localId: Long): Result<Unit> = runCatching {
         val existing = dao.getByLocalId(localId) ?: return@runCatching
-        if (sessionStore.hasSession() && existing.serverId != null) {
-            api.deletePhaseWindow(existing.serverId)
+        val localOnly = outboxRepository.enqueueDelete(entityType, localId)
+        if (localOnly) {
+            dao.deleteByLocalId(localId)
+        } else {
+            // Tombstone rather than hard-delete -- OutboxProcessor still
+            // needs this row's serverId when the DELETE op actually runs.
+            dao.upsert(existing.copy(deleted = true, pendingSync = true))
         }
-        dao.deleteByLocalId(localId)
     }
 
+    /** Skips rows with unpushed local edits -- see PlantRepository.pullSync
+     * for why. */
     suspend fun pullSyncForPlant(plantLocalId: Long) {
         if (!sessionStore.hasSession()) return
         val plantServerId = plantDao.getByLocalId(plantLocalId)?.serverId ?: return
@@ -111,9 +122,43 @@ class PhaseWindowRepository(
         val remoteIds = remote.map { it.id }.toSet()
         remote.forEach { dto ->
             val phaseTypeLocalId = phaseTypeLocalIdByServerId[dto.phaseTypeId] ?: return@forEach
-            upsertFromDto(dto, plantLocalId, phaseTypeLocalId)
+            if (dao.getByServerId(dto.id)?.dirty != true) upsertFromDto(dto, plantLocalId, phaseTypeLocalId)
         }
         dao.getSyncedServerIdsForPlant(plantLocalId).filterNot { it in remoteIds }.forEach { dao.deleteByServerId(it) }
+    }
+
+    override suspend fun process(op: OutboxOperationEntity): OutboxResult {
+        val window = dao.getByLocalId(op.entityLocalId) ?: return OutboxResult.Success // already gone locally, nothing to do
+        return when (op.opType) {
+            OutboxOpType.CREATE -> {
+                val payload = gson.fromJson(op.payloadJson, WindowPayload::class.java)
+                val plantServerId = plantDao.getByLocalId(window.plantLocalId)?.serverId ?: return OutboxResult.CascadeFailed
+                val phaseTypeServerId = phaseTypeDao.getByLocalId(payload.phaseTypeLocalId)?.serverId ?: return OutboxResult.CascadeFailed
+                val dto = api.createPhaseWindow(
+                    plantServerId,
+                    CreatePhaseWindowRequest(phaseTypeServerId, payload.startMonth, payload.startDay, payload.endMonth, payload.endDay, payload.notes),
+                )
+                upsertFromDto(dto, window.plantLocalId, payload.phaseTypeLocalId, preserveLocalId = op.entityLocalId)
+                OutboxResult.Success
+            }
+            OutboxOpType.UPDATE -> {
+                val serverId = window.serverId ?: return OutboxResult.CascadeFailed
+                val payload = gson.fromJson(op.payloadJson, WindowPayload::class.java)
+                val phaseTypeServerId = phaseTypeDao.getByLocalId(payload.phaseTypeLocalId)?.serverId ?: return OutboxResult.CascadeFailed
+                val dto = api.updatePhaseWindow(
+                    serverId,
+                    CreatePhaseWindowRequest(phaseTypeServerId, payload.startMonth, payload.startDay, payload.endMonth, payload.endDay, payload.notes),
+                )
+                upsertFromDto(dto, window.plantLocalId, payload.phaseTypeLocalId, preserveLocalId = op.entityLocalId)
+                OutboxResult.Success
+            }
+            OutboxOpType.DELETE -> {
+                window.serverId?.let { api.deletePhaseWindow(it) }
+                dao.deleteByLocalId(op.entityLocalId)
+                OutboxResult.Success
+            }
+            else -> error("Phase windows only support CREATE/UPDATE/DELETE")
+        }
     }
 
     private suspend fun upsertFromDto(
