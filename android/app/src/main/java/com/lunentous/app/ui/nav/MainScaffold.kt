@@ -11,6 +11,7 @@ import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,7 +49,7 @@ private const val SYNC_ISSUES_ROUTE = "sync_issues"
  * adaptive pattern, switched on orientation per the Android plan.
  */
 @Composable
-fun MainScaffold(container: AppContainer) {
+fun MainScaffold(container: AppContainer, deepLinkTarget: DeepLinkTarget? = null, onDeepLinkConsumed: () -> Unit = {}) {
     val navController = rememberNavController()
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
@@ -57,6 +58,22 @@ fun MainScaffold(container: AppContainer) {
     // dashboard's FAB and the plant detail screen's edit action need to
     // open the same shared create/edit sheet.
     var plantFormTarget by remember { mutableStateOf<PlantFormTarget?>(null) }
+
+    // Widget tap / app shortcut / share-to-app / notification tap all land
+    // here as a DeepLinkTarget, parsed once from the launching Intent (see
+    // MainActivity). Runs once per new target rather than on every
+    // recomposition, and clears itself afterward so back-navigation or a
+    // config change doesn't re-fire it.
+    LaunchedEffect(deepLinkTarget) {
+        when (val target = deepLinkTarget) {
+            is DeepLinkTarget.PlantDetail -> navController.navigate(plantDetailRoute(target.plantLocalId))
+            DeepLinkTarget.Calendar -> navigateTo(navController, NavDestination.Calendar)
+            DeepLinkTarget.NewTimelineEntry -> navigateTo(navController, NavDestination.Calendar)
+            is DeepLinkTarget.ShareImage -> navigateTo(navController, NavDestination.Calendar)
+            null -> return@LaunchedEffect
+        }
+        onDeepLinkConsumed()
+    }
 
     Row(modifier = Modifier.fillMaxSize()) {
         if (isLandscape) {
