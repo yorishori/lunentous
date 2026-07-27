@@ -412,8 +412,8 @@ existing mutation in the codebase, not an exception.
 ## Android
 
 `android/` has a toolchain scaffold, an app shell, every screen from the
-plan (phases 1–4), and a full offline write queue (phase 5) -- only the
-Android-native additions (notifications, camera capture, widget) remain.
+plan (phases 1–4), a full offline write queue (phase 5), and the
+Android-native additions (phase 6) -- the plan as scoped is complete.
 
 Screens: a Catppuccin-themed adaptive nav shell (bottom bar in portrait /
 rail in landscape, icons-only, 5 destinations mirroring the web's nav); an
@@ -459,15 +459,38 @@ for the first time with local-only data already present pushes it
 (free, since it was already queued) then runs a one-time case-insensitive
 duplicate-plant-name scan.
 
+Native additions (phase 6): deep links (`DeepLinkTarget`, parsed once from
+the launching/new Intent, consumed by `MainScaffold`'s `NavHost`) are the
+common landing mechanism for everything below. Camera capture
+(`ActivityResultContracts.TakePicture`, delegating to the system camera
+app rather than an in-app `CameraX` preview, so no `CAMERA` permission is
+needed) writes into app-private `filesDir/photos/`; captured/appended
+photos travel through the outbox too (a new `APPEND_PHOTOS` op,
+`TIMELINE_EVENT`-only, independent of that entry's own
+CREATE/UPDATE/DELETE), with local-only (`serverId == null`) photo rows
+cleared right before reconciling a CREATE/APPEND_PHOTOS response so they
+don't end up duplicated alongside the server-backed rows. Reminder
+notifications reuse the on-device poll the original spec called for (see
+below): `PullSyncWorker`'s existing periodic pull now also checks
+`reminder_states` for anything due/overdue and not yet notified and posts
+one local notification per reminder, deep-linking to that plant. Static
+app shortcuts ("New entry", "Calendar") and a share-to-app `ACTION_SEND`
+image intent filter (imported to a durable local file, then handed to
+Calendar's new-entry sheet pre-attached) round out the native entry
+points. A Glance home screen widget shows overdue count + next few
+reminders, with a one-tap "Mark done" action that goes through the same
+`TimelineRepository.createEvent` → outbox path the in-app mark-done flow
+uses, so it works offline too.
+
 See `android/README.md` for the (sudo-free) toolchain setup and how to
-build/install on a physical device, and the architecture plan this is
-being built from for the full design and the native-additions work still
-ahead.
+build/install on a physical device, and the architecture plan this was
+built from for the full design.
 
 The original spec's design for this app was on-device `WorkManager` polling
 using `reminder_states.notified`; the `notified` column and the
 `?due_before_or_on=&notified=` query support on `/api/reminder-states`
-exist for that use case but are unused by the web app.
+exist for that use case (now used by the Android app's `ReminderNotifier`,
+described above) but remain unused by the web app.
 
 ## Not built
 
