@@ -1,0 +1,5 @@
+<resources>
+    <!-- Catppuccin Mocha's bg (see ui/theme/Theme.kt), used as the
+         adaptive launcher icon's background layer. -->
+    <color name="ic_launcher_background">#1E1E2E</color>
+</resources>
