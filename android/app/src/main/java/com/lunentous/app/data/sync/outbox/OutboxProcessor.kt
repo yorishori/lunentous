@@ -19,8 +19,15 @@ class OutboxProcessor(
     private val sessionStore: SessionStore,
 ) {
     /** Returns true if the queue was fully drained, false if it stopped
-     * early on a retryable failure or reauth requirement. */
+     * early on a retryable failure or reauth requirement. A no-op (treated
+     * as drained) when there's no server configured at all -- the queue
+     * just stays idle until a session exists, per the plan's "server
+     * connection is optional" design. Without this check, every op would
+     * throw NoServerConfiguredException (an IOException, so it'd classify
+     * as retryable) and WorkManager would retry forever with backoff for a
+     * user who never intends to connect. */
     suspend fun processQueue(): Boolean {
+        if (!sessionStore.hasSession()) return true
         while (true) {
             val op = outboxRepository.nextPending() ?: return true
             outboxRepository.markInFlight(op.id)
