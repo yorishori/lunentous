@@ -1,4 +1,4 @@
--- Lunentous SQLite schema (spec_v1.md §3)
+-- Lunentous SQLite schema -- see ARCHITECTURE.md's Domain model section
 
 CREATE TABLE IF NOT EXISTS reminder_types (
     id INTEGER PRIMARY KEY,

@@ -1,6 +1,6 @@
 // Bootstrap script: mints the first API key out-of-band, avoiding an
-// unauthenticated bootstrap HTTP endpoint (spec_v1.md §3 api_keys comment).
-// Run with: npm run cli:create-api-key -- --label "web"
+// unauthenticated bootstrap HTTP endpoint (see ARCHITECTURE.md's
+// Authentication section). Run with: npm run cli:create-api-key -- --label "web"
 import { migrate } from "../db/migrate.js";
 import { db } from "../db/client.js";
 import { generateApiKeyToken, hashApiKeyToken } from "../lib/auth.js";

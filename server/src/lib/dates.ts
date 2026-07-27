@@ -1,5 +1,6 @@
 // All domain dates are plain calendar dates ("YYYY-MM-DD"), no timezone
-// component -- per spec_v1.md §9. "Today" is the server process's local date.
+// component -- see ARCHITECTURE.md's Domain model section. "Today" is the
+// server process's local date.
 
 export type ISODate = string;
 
