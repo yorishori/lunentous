@@ -43,6 +43,22 @@ class PlantRepository(
 
     fun observeByArchived(archived: Boolean): Flow<List<PlantEntity>> = dao.observeByArchived(archived)
 
+    /** Any plant not yet pushed to the server -- used to decide whether an
+     * initial connect needs the merge flow (push-as-new + duplicate scan)
+     * at all, per the Android plan's "Server connection is optional". */
+    suspend fun hasLocalOnlyPlants(): Boolean = dao.getLocalOnly().isNotEmpty()
+
+    /** Case-insensitive name collisions across every plant (active and
+     * archived alike) -- surfaced once after an initial-connect merge as a
+     * "possible duplicates" cleanup prompt. Scoped to plants only per the
+     * plan: the entity users are most likely to have created on both
+     * sides before ever connecting. */
+    suspend fun findDuplicateNameGroups(): List<List<PlantEntity>> =
+        dao.getAllOnce()
+            .groupBy { it.name.trim().lowercase() }
+            .values
+            .filter { it.size > 1 }
+
     /** For joins that need every plant's name regardless of archived state
      * (e.g. the dashboard's task list), not just the grid's active plants. */
     fun observeAll(): Flow<List<PlantEntity>> = dao.observeAll()

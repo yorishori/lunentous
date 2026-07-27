@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.lunentous.app.data.local.entity.PlantEntity
 import com.lunentous.app.data.remote.dto.ApiKeyDto
 import com.lunentous.app.di.AppContainer
 import com.lunentous.app.ui.theme.LunentousExtendedTheme
@@ -81,13 +82,20 @@ fun SettingsScreen(container: AppContainer) {
                     )
                 } else {
                     ConnectForm(
-                        onConnected = { url, key ->
-                            sessionStore.saveSession(url, key)
-                            connected = true
-                        },
+                        isConnecting = viewModel.isConnecting,
+                        error = viewModel.connectError,
+                        onConnect = { url, key -> viewModel.connect(url, key) { connected = true } },
                     )
                 }
             }
+        }
+
+        if (viewModel.duplicatePlantGroups.isNotEmpty()) {
+            DuplicatePlantsCard(
+                groups = viewModel.duplicatePlantGroups,
+                onArchive = viewModel::archiveDuplicate,
+                onDismiss = viewModel::dismissDuplicates,
+            )
         }
 
         if (connected) {
@@ -106,7 +114,9 @@ fun SettingsScreen(container: AppContainer) {
             }
         }
 
-        // Notification schedule and sync status land in later build phases.
+        // Notification schedule and sync status (the latter lives in
+        // MainScaffold's SyncStatusBar / the Sync Issues screen) land in
+        // later build phases.
     }
 }
 
@@ -123,10 +133,11 @@ private fun ConnectedStatus(serverUrl: String, onDisconnect: () -> Unit) {
 }
 
 @Composable
-private fun ConnectForm(onConnected: (serverUrl: String, apiKey: String) -> Unit) {
+private fun ConnectForm(isConnecting: Boolean, error: String?, onConnect: (serverUrl: String, apiKey: String) -> Unit) {
     var serverUrl by remember { mutableStateOf("") }
     var apiKey by remember { mutableStateOf("") }
-    val canSubmit = serverUrl.isNotBlank() && apiKey.isNotBlank()
+    val canSubmit = serverUrl.isNotBlank() && apiKey.isNotBlank() && !isConnecting
+    val colors = LunentousExtendedTheme.colors
 
     Text(
         "The app works fully offline without this -- connect only if you " +
@@ -150,12 +161,51 @@ private fun ConnectForm(onConnected: (serverUrl: String, apiKey: String) -> Unit
         visualTransformation = PasswordVisualTransformation(),
         modifier = Modifier.fillMaxWidth(),
     )
+    error?.let { Text(it, color = colors.overdue, style = MaterialTheme.typography.bodySmall) }
     Button(
-        onClick = { onConnected(serverUrl, apiKey) },
+        onClick = { onConnect(serverUrl, apiKey) },
         enabled = canSubmit,
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Text("Connect")
+        Text(if (isConnecting) "Connecting…" else "Connect")
+    }
+}
+
+/** Shown once, right after an initial-connect merge finds case-insensitive
+ * plant-name collisions -- see the Android plan's initial-connect merge
+ * design. Purely in-memory / this session, not a persistent nag. */
+@Composable
+private fun DuplicatePlantsCard(groups: List<List<PlantEntity>>, onArchive: (PlantEntity) -> Unit, onDismiss: () -> Unit) {
+    val colors = LunentousExtendedTheme.colors
+    Card(shape = MaterialTheme.shapes.medium) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Possible duplicate plants", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "These plants share a name after connecting -- probably the same plant created on both sides. Keep both, or archive one.",
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textMuted,
+            )
+            groups.forEach { group ->
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(group.first().name, style = MaterialTheme.typography.titleSmall)
+                    group.forEach { plant ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                listOfNotNull(plant.species, plant.location).joinToString(" · ").ifBlank { "No details" },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.textMuted,
+                            )
+                            OutlinedButton(onClick = { onArchive(plant) }) { Text("Archive") }
+                        }
+                    }
+                }
+            }
+            OutlinedButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("Keep all") }
+        }
     }
 }
 
