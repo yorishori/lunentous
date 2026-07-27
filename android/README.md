@@ -1,10 +1,12 @@
-# Lunentous — Android (early scaffold)
+# Lunentous — Android
 
-This is a **toolchain scaffold**, not a working app yet: a single
-placeholder Compose screen exists to prove the build compiles end-to-end.
-Real screens, navigation, and the API client come in a later pass — see
-`ARCHITECTURE.md` at the repo root for the backend this will eventually talk
-to.
+Not a working app yet, but past the bare toolchain scaffold: there's a
+Catppuccin-themed login screen (server address + API key, saved via
+Keystore-backed encrypted storage) and an adaptive navigation shell —
+bottom bar in portrait, side rail in landscape, both icons-only — with 5
+placeholder destinations mirroring the web app's nav. No data layer yet;
+screens don't fetch or show real data. See the plan this is being built
+from and `ARCHITECTURE.md` at the repo root for the backend it'll talk to.
 
 No Android Studio is required — everything here works from the command
 line with a physical device over `adb`. (Studio works fine too, if you'd
@@ -103,10 +105,19 @@ android/
     build.gradle.kts      applicationId com.lunentous.app, minSdk 26,
                           target/compileSdk 35, Compose enabled;
                           Retrofit + WorkManager already declared as
-                          dependencies (unused until those features exist)
+                          dependencies (data layer not built yet)
     src/main/
-      AndroidManifest.xml
-      java/com/lunentous/app/MainActivity.kt   the one placeholder screen
+      AndroidManifest.xml   INTERNET permission, usesCleartextTraffic
+                            (the server has no built-in TLS -- see root
+                            README.md's Network exposure note)
+      java/com/lunentous/app/
+        MainActivity.kt       entry point: theme + login-gated nav shell
+        data/auth/SessionStore.kt   encrypted server URL + API key storage
+        ui/theme/Theme.kt      Catppuccin Mocha/Latte + JetBrains Mono
+        ui/login/LoginScreen.kt
+        ui/nav/NavDestination.kt, MainScaffold.kt   adaptive bottom bar/rail
+      res/font/                JetBrains Mono TTFs (SIL licensed, same
+                               files the web self-hosts via @fontsource)
       res/values/strings.xml
 ```
 

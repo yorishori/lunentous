@@ -411,11 +411,15 @@ existing mutation in the codebase, not an exception.
 
 ## Android
 
-`android/` has an initial toolchain scaffold — Gradle wrapper, AGP/Kotlin/
-Compose set up, one placeholder screen that proves the build compiles — but
-no real app yet. See `android/README.md` for the (sudo-free) toolchain setup
-and how to build/install on a physical device. Screens, navigation, and the
-Retrofit client against the API surface documented above are still to come.
+`android/` has a toolchain scaffold plus an early app shell: a
+Catppuccin-themed login screen (server URL + API key, Keystore-encrypted)
+and an adaptive nav shell (bottom bar in portrait / rail in landscape,
+icons-only, 5 destinations mirroring the web's nav) — but no data layer or
+real screens yet. See `android/README.md` for the (sudo-free) toolchain
+setup and how to build/install on a physical device, and the architecture
+plan this is being built from for the full design (Room offline-first
+schema, outbox sync, screen-by-screen mapping to the web app). The Retrofit
+client against the API surface documented above is still to come.
 
 The original spec's design for this app was on-device `WorkManager` polling
 using `reminder_states.notified`; the `notified` column and the

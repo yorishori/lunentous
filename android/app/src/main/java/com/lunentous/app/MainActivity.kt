@@ -3,38 +3,39 @@ package com.lunentous.app
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.lunentous.app.data.auth.SessionStore
+import com.lunentous.app.ui.login.LoginScreen
+import com.lunentous.app.ui.nav.MainScaffold
+import com.lunentous.app.ui.theme.LunentousTheme
 
-// Placeholder entry point -- proves the toolchain (JDK, Android SDK,
-// Gradle wrapper, Compose) compiles end-to-end. Real screens, navigation,
-// and the API client come in a later pass -- see ARCHITECTURE.md.
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val sessionStore = SessionStore(applicationContext)
         setContent {
-            LunentousApp()
+            LunentousApp(sessionStore)
         }
     }
 }
 
 @Composable
-fun LunentousApp() {
-    MaterialTheme {
+fun LunentousApp(sessionStore: SessionStore) {
+    var loggedIn by remember { mutableStateOf(sessionStore.hasSession()) }
+
+    LunentousTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
-            Column(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(text = "Lunentous")
+            if (loggedIn) {
+                MainScaffold()
+            } else {
+                LoginScreen(sessionStore = sessionStore, onLoggedIn = { loggedIn = true })
             }
         }
     }
