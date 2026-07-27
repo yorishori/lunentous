@@ -6,7 +6,9 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.lunentous.app.data.local.entity.OverridePeriodEntity
+import com.lunentous.app.data.local.entity.PhaseTypeEntity
 import com.lunentous.app.data.local.entity.PlantEntity
+import com.lunentous.app.data.local.entity.PlantPhaseWindowEntity
 import com.lunentous.app.data.local.entity.ReminderTypeEntity
 import com.lunentous.app.data.repository.ReminderRuleWithPeriods
 import com.lunentous.app.di.AppContainer
@@ -27,6 +29,12 @@ class PlantDetailViewModel(private val container: AppContainer, private val plan
     val reminderRules: StateFlow<List<ReminderRuleWithPeriods>> = container.reminderRuleRepository.observeByPlant(plantLocalId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val phaseTypes: StateFlow<List<PhaseTypeEntity>> = container.phaseTypeRepository.observeByArchived(false)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val phaseWindows: StateFlow<List<PlantPhaseWindowEntity>> = container.phaseWindowRepository.observeByPlant(plantLocalId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     var isArchiving by mutableStateOf(false)
         private set
 
@@ -39,10 +47,18 @@ class PlantDetailViewModel(private val container: AppContainer, private val plan
     var ruleError by mutableStateOf<String?>(null)
         private set
 
+    var isSavingWindow by mutableStateOf(false)
+        private set
+
+    var windowError by mutableStateOf<String?>(null)
+        private set
+
     init {
         viewModelScope.launch { container.plantRepository.pullSync() }
         viewModelScope.launch { container.reminderTypeRepository.pullSync() }
         viewModelScope.launch { container.reminderRuleRepository.pullSyncForPlant(plantLocalId) }
+        viewModelScope.launch { container.phaseTypeRepository.pullSync() }
+        viewModelScope.launch { container.phaseWindowRepository.pullSyncForPlant(plantLocalId) }
     }
 
     fun toggleArchive() {
@@ -91,6 +107,41 @@ class PlantDetailViewModel(private val container: AppContainer, private val plan
                 onDone()
             }
             result.onFailure { ruleError = it.message ?: "Failed to delete reminder rule" }
+        }
+    }
+
+    fun savePhaseWindow(
+        existingWindowLocalId: Long?,
+        phaseTypeLocalId: Long,
+        startMonth: Int,
+        startDay: Int,
+        endMonth: Int,
+        endDay: Int,
+        notes: String?,
+        onDone: () -> Unit,
+    ) {
+        viewModelScope.launch {
+            isSavingWindow = true
+            windowError = null
+            val result = if (existingWindowLocalId != null) {
+                container.phaseWindowRepository.update(existingWindowLocalId, phaseTypeLocalId, startMonth, startDay, endMonth, endDay, notes)
+            } else {
+                container.phaseWindowRepository.create(plantLocalId, phaseTypeLocalId, startMonth, startDay, endMonth, endDay, notes)
+            }
+            isSavingWindow = false
+            result.onSuccess { onDone() }
+            result.onFailure { windowError = it.message ?: "Failed to save phase window" }
+        }
+    }
+
+    fun deletePhaseWindow(windowLocalId: Long, onDone: () -> Unit) {
+        viewModelScope.launch {
+            isSavingWindow = true
+            windowError = null
+            val result = container.phaseWindowRepository.delete(windowLocalId)
+            isSavingWindow = false
+            result.onSuccess { onDone() }
+            result.onFailure { windowError = it.message ?: "Failed to delete phase window" }
         }
     }
 }
