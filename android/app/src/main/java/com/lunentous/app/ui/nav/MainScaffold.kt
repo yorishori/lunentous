@@ -15,18 +15,29 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.lunentous.app.di.AppContainer
 import com.lunentous.app.ui.dashboard.DashboardScreen
+import com.lunentous.app.ui.plant.PlantFormSheet
+import com.lunentous.app.ui.plant.PlantFormTarget
 import com.lunentous.app.ui.settings.SettingsScreen
+
+private const val PLANT_LOCAL_ID_ARG = "plantLocalId"
+private const val PLANT_DETAIL_ROUTE = "plant_detail/{$PLANT_LOCAL_ID_ARG}"
+private fun plantDetailRoute(plantLocalId: Long) = "plant_detail/$plantLocalId"
 
 /**
  * Adaptive shell: bottom NavigationBar (icons only) in portrait, side
@@ -38,6 +49,11 @@ fun MainScaffold(container: AppContainer) {
     val navController = rememberNavController()
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
+
+    // Owned here (not inside Dashboard/PlantDetail) since both the
+    // dashboard's FAB and the plant detail screen's edit action need to
+    // open the same shared create/edit sheet.
+    var plantFormTarget by remember { mutableStateOf<PlantFormTarget?>(null) }
 
     Row(modifier = Modifier.fillMaxSize()) {
         if (isLandscape) {
@@ -79,11 +95,8 @@ fun MainScaffold(container: AppContainer) {
                             NavDestination.Settings -> SettingsScreen(sessionStore = container.sessionStore)
                             NavDestination.Dashboard -> DashboardScreen(
                                 container = container,
-                                // Plant detail route + create/edit bottom sheet land in
-                                // the next build step (nav wiring, Android plan's Build
-                                // ordering) -- no-ops here in the meantime.
-                                onPlantClick = {},
-                                onAddPlant = {},
+                                onPlantClick = { plantLocalId -> navController.navigate(plantDetailRoute(plantLocalId)) },
+                                onAddPlant = { plantFormTarget = PlantFormTarget.Create },
                             )
                             else -> {
                                 // Real screens land in later build phases -- see
@@ -94,8 +107,33 @@ fun MainScaffold(container: AppContainer) {
                         }
                     }
                 }
+
+                composable(
+                    route = PLANT_DETAIL_ROUTE,
+                    arguments = listOf(navArgument(PLANT_LOCAL_ID_ARG) { type = NavType.LongType }),
+                ) { backStackEntry ->
+                    val plantLocalId = backStackEntry.arguments?.getLong(PLANT_LOCAL_ID_ARG) ?: return@composable
+                    // Real hero card / rules / phase windows / timeline land in
+                    // the next build steps -- this proves the route + args work.
+                    PlaceholderScreen("Plant #$plantLocalId")
+                }
             }
         }
+    }
+
+    plantFormTarget?.let { target ->
+        val existing = (target as? PlantFormTarget.Edit)?.plant
+        PlantFormSheet(
+            container = container,
+            existing = existing,
+            onDismiss = { plantFormTarget = null },
+            onSaved = { plantLocalId ->
+                plantFormTarget = null
+                if (target is PlantFormTarget.Create) {
+                    navController.navigate(plantDetailRoute(plantLocalId))
+                }
+            },
+        )
     }
 }
 
