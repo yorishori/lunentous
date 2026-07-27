@@ -1,24 +1,37 @@
 import { useMemo, useRef, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, Plus, type LucideIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { apiFetch } from "../api/client";
-import type { Plant, ReminderRule, ReminderState, ReminderType, PhaseWindow } from "../api/types";
+import type { Plant, ReminderRule, ReminderState, ReminderType, PhaseWindow, TimelineEvent } from "../api/types";
 import { buildCareTimeline, buildWeeks } from "../lib/careTimeline";
-import CareTimelineGrid, { activityIcon } from "../components/CareTimelineGrid";
+import CareTimelineGrid from "../components/CareTimelineGrid";
 import MultiSelect from "../components/MultiSelect";
 import Modal from "../components/Modal";
 import TimelineEntryForm from "../components/TimelineEntryForm";
+import { getIcon } from "../lib/icons";
 
-// Not truly infinite/lazily-extended -- 24 months is a large-but-bounded
-// window instead (matches the Android app), which stays simple (no
-// virtualization) and, for a personal plant-care app with a handful of
-// plants, is effectively as far as anyone will ever scroll.
-const WINDOW_MONTHS = 24;
+// Not truly infinite/lazily-extended -- a large-but-bounded window instead
+// (matches the Android app), which stays simple (no virtualization) and,
+// for a personal plant-care app with a handful of plants, is effectively
+// as far as anyone will ever scroll. Shifted a couple months into the past
+// rather than starting exactly at "now": logged timeline entries are
+// inherently backward-looking (you log what you did, dated today or
+// earlier), so a window that only ever looked forward would never have
+// anything to show in the week-detail panel outside the very first week.
+const WINDOW_MONTHS_BACK = 2;
+const WINDOW_MONTHS_FORWARD = 22;
 const SCROLL_PAGE_WEEKS = 4;
 const WEEK_WIDTH_PX = 37; // 2.3rem at the default 16px root -- close enough for a page-scroll amount
 
 function isoDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function addDays(iso: string, days: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return dt.toISOString().slice(0, 10);
 }
 
 function formatWeekRange(startIso: string): string {
@@ -50,8 +63,11 @@ export default function Calendar() {
     const start = new Date();
     start.setDate(1);
     start.setHours(0, 0, 0, 0);
-    const end = new Date(start);
-    end.setMonth(end.getMonth() + WINDOW_MONTHS);
+    start.setMonth(start.getMonth() - WINDOW_MONTHS_BACK);
+    const end = new Date();
+    end.setDate(1);
+    end.setHours(0, 0, 0, 0);
+    end.setMonth(end.getMonth() + WINDOW_MONTHS_FORWARD);
     end.setDate(end.getDate() - 1);
     return { windowStart: start, windowEnd: end, weeks: buildWeeks(start, end) };
   }, []);
@@ -116,11 +132,21 @@ export default function Calendar() {
     windowStart: isoDate(windowStart),
     windowEnd: isoDate(windowEnd),
   });
-
   const week = weeks[selectedWeek];
-  const activitiesById = new Map(activities.map((a) => [a.id, a]));
-  const activeRanges = ranges.filter((r) => selectedWeek >= r.startWeek && selectedWeek <= r.endWeek);
-  const activeEvents = events.filter((e) => e.week === selectedWeek);
+  const weekFrom = week?.startDate;
+  const weekTo = week ? addDays(week.startDate, 6) : undefined;
+
+  const timelineQueries = useQueries({
+    queries: effectivePlants.map((p) => ({
+      queryKey: ["timeline-week", p.id, weekFrom, weekTo],
+      queryFn: () => apiFetch<TimelineEvent[]>(`/plants/${p.id}/timeline?from=${weekFrom}&to=${weekTo}&limit=100`),
+      enabled: !!weekFrom && !!weekTo,
+    })),
+  });
+  const reminderTypesById = new Map((reminderTypesQuery.data ?? []).map((t) => [t.id, t]));
+  const weekEntries = effectivePlants
+    .flatMap((p, idx) => (timelineQueries[idx]?.data ?? []).map((event) => ({ event, plant: p })))
+    .sort((a, b) => b.event.event_date.localeCompare(a.event.event_date));
 
   return (
     <div>
@@ -176,20 +202,18 @@ export default function Calendar() {
       {week && (
         <div className="calendar-detail-panel">
           <h3 style={{ marginBottom: "0.75rem" }}>{formatWeekRange(week.startDate)}</h3>
-          {activeRanges.length === 0 && activeEvents.length === 0 ? (
-            <p style={{ color: "var(--text-muted)" }}>Routine care only — nothing scheduled this week.</p>
+          {weekEntries.length === 0 ? (
+            <p style={{ color: "var(--text-muted)" }}>No entries logged this week.</p>
           ) : (
-            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-              {activeRanges.map((range, i) => {
-                const activity = activitiesById.get(range.activityId);
-                if (!activity) return null;
-                return <DetailChip key={`r-${i}`} icon={activityIcon(activity)} label={activity.label} plantName={range.plantName} color={activity.color} />;
-              })}
-              {activeEvents.map((event, i) => {
-                const activity = activitiesById.get(event.activityId);
-                if (!activity) return null;
-                return <DetailChip key={`e-${i}`} icon={activityIcon(activity)} label={activity.label} plantName={event.plantName} color={activity.color} />;
-              })}
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+              {weekEntries.map(({ event, plant }) => (
+                <EntryCard
+                  key={event.id}
+                  event={event}
+                  plantName={plant.name}
+                  reminderType={event.reminder_type_id != null ? reminderTypesById.get(event.reminder_type_id) : undefined}
+                />
+              ))}
             </div>
           )}
         </div>
@@ -202,14 +226,53 @@ export default function Calendar() {
   );
 }
 
-function DetailChip({ icon: Icon, label, plantName, color }: { icon: LucideIcon; label: string; plantName: string; color: string }) {
+// Untyped (journal-only) entries have no reminder type to represent, so
+// they render with no icon at all rather than a placeholder.
+function EntryCard({ event, plantName, reminderType }: { event: TimelineEvent; plantName: string; reminderType?: ReminderType }) {
+  const Icon = reminderType?.icon ? getIcon(reminderType.icon) : null;
+  const color = reminderType?.color ?? "var(--accent)";
+
   return (
-    <span
-      className="badge"
-      style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", background: `${color}29`, color }}
-    >
-      <Icon size={14} />
-      {label} · {plantName}
-    </span>
+    <div className="card" style={{ padding: "0.75rem" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+        {reminderType && (
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: "1.75rem",
+              height: "1.75rem",
+              borderRadius: "999px",
+              background: reminderType.color ? `${reminderType.color}29` : "var(--accent-soft)",
+              color,
+              flexShrink: 0,
+            }}
+          >
+            {Icon && <Icon size={14} />}
+          </span>
+        )}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 600 }}>{plantName}</div>
+          {reminderType && (
+            <span style={{ fontSize: "0.78rem", color }}>{reminderType.name}</span>
+          )}
+        </div>
+        <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", whiteSpace: "nowrap" }}>{event.event_date}</span>
+      </div>
+      {event.text && <p style={{ marginBottom: 0, marginTop: "0.5rem" }}>{event.text}</p>}
+      {event.photos.length > 0 && (
+        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginTop: "0.5rem" }}>
+          {event.photos.map((p) => (
+            <img
+              key={p.id}
+              src={`/photos/${p.file_path}`}
+              alt=""
+              style={{ width: 64, height: 64, objectFit: "cover", borderRadius: "8px" }}
+            />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
