@@ -34,6 +34,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.lunentous.app.data.local.entity.PlantEntity
 import com.lunentous.app.data.local.entity.ReminderTypeEntity
 import com.lunentous.app.data.repository.TimelineEventWithPhotos
 import com.lunentous.app.ui.theme.LunentousExtendedTheme
@@ -45,16 +46,24 @@ import java.time.ZoneOffset
  * date/type/notes only -- photo capture is deferred to the phase-6 camera
  * work (Android plan's Build ordering), so unlike TimelineEntryForm.tsx
  * there's no file picker here yet.
+ *
+ * Plant Detail passes `fixedPlantLocalId` and no `plants` list, so no
+ * selector shows (mirrors TimelineEntryForm.tsx's `plantId` prop). Calendar
+ * passes `plants` so the user picks one up front (mirrors its `plants`
+ * prop) -- hidden when editing an existing entry either way, since the
+ * plant can't change after the fact.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TimelineEntryFormSheet(
     reminderTypes: List<ReminderTypeEntity>,
     existing: TimelineEventWithPhotos?,
+    plants: List<PlantEntity> = emptyList(),
+    fixedPlantLocalId: Long? = null,
     isSaving: Boolean,
     error: String?,
     onDismiss: () -> Unit,
-    onSave: (eventDate: String, reminderTypeLocalId: Long?, text: String?) -> Unit,
+    onSave: (plantLocalId: Long, eventDate: String, reminderTypeLocalId: Long?, text: String?) -> Unit,
     onDelete: (() -> Unit)?,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -63,15 +72,39 @@ fun TimelineEntryFormSheet(
     var eventDate by remember { mutableStateOf(existing?.event?.eventDate ?: LocalDate.now().toString()) }
     var showDatePicker by remember { mutableStateOf(false) }
     var typeExpanded by remember { mutableStateOf(false) }
+    var plantExpanded by remember { mutableStateOf(false) }
     var selectedTypeLocalId by remember { mutableStateOf(existing?.event?.reminderTypeLocalId) }
+    var selectedPlantLocalId by remember {
+        mutableStateOf(existing?.event?.plantLocalId ?: fixedPlantLocalId ?: plants.firstOrNull()?.localId ?: 0L)
+    }
     var text by remember { mutableStateOf(existing?.event?.text ?: "") }
 
     val selectedType = reminderTypes.find { it.localId == selectedTypeLocalId }
+    val selectedPlant = plants.find { it.localId == selectedPlantLocalId }
+    val showPlantPicker = plants.isNotEmpty() && existing == null
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
             Text(if (existing != null) "Edit timeline entry" else "Log timeline entry", style = MaterialTheme.typography.titleLarge)
             Spacer(Modifier.padding(top = 12.dp))
+
+            if (showPlantPicker) {
+                ExposedDropdownMenuBox(expanded = plantExpanded, onExpandedChange = { plantExpanded = it }) {
+                    OutlinedTextField(
+                        value = selectedPlant?.name ?: "",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Plant") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = plantExpanded) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable).padding(bottom = 10.dp),
+                    )
+                    ExposedDropdownMenu(expanded = plantExpanded, onDismissRequest = { plantExpanded = false }) {
+                        plants.forEach { plant ->
+                            DropdownMenuItem(text = { Text(plant.name) }, onClick = { selectedPlantLocalId = plant.localId; plantExpanded = false })
+                        }
+                    }
+                }
+            }
 
             OutlinedTextField(
                 value = eventDate,
@@ -121,8 +154,8 @@ fun TimelineEntryFormSheet(
                     }
                 }
                 Button(
-                    onClick = { onSave(eventDate, selectedTypeLocalId, text.trim().ifBlank { null }) },
-                    enabled = !isSaving,
+                    onClick = { onSave(selectedPlantLocalId, eventDate, selectedTypeLocalId, text.trim().ifBlank { null }) },
+                    enabled = !isSaving && selectedPlantLocalId != 0L,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(if (existing != null) "Save changes" else "Add entry")

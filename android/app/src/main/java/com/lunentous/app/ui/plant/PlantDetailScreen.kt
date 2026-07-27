@@ -247,10 +247,11 @@ fun PlantDetailScreen(
         TimelineEntryFormSheet(
             reminderTypes = reminderTypes,
             existing = existing,
+            fixedPlantLocalId = plantLocalId,
             isSaving = viewModel.isSavingEntry,
             error = viewModel.entryError,
             onDismiss = { entryFormTarget = null },
-            onSave = { eventDate, reminderTypeLocalId, text ->
+            onSave = { _, eventDate, reminderTypeLocalId, text ->
                 viewModel.saveTimelineEntry(existing?.event?.localId, eventDate, reminderTypeLocalId, text) {
                     entryFormTarget = null
                 }
