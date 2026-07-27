@@ -9,6 +9,7 @@ import com.lunentous.app.data.notifications.ReminderNotifier
 import com.lunentous.app.data.remote.ConnectivityObserver
 import com.lunentous.app.data.remote.NetworkModule
 import com.lunentous.app.data.settings.AppearanceStore
+import com.lunentous.app.data.settings.NotificationScheduleStore
 import com.lunentous.app.data.repository.AccountRepository
 import com.lunentous.app.data.repository.PhaseTypeRepository
 import com.lunentous.app.data.repository.PhaseWindowRepository
@@ -32,6 +33,7 @@ class AppContainer(context: Context) {
     private val appContext = context.applicationContext
     val sessionStore = SessionStore(context)
     val appearanceStore = AppearanceStore(context)
+    val notificationScheduleStore = NotificationScheduleStore(context)
     val connectivityObserver = ConnectivityObserver(context.applicationContext)
 
     private val database = Room.databaseBuilder(

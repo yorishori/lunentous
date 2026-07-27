@@ -10,15 +10,20 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -37,11 +42,14 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.lunentous.app.data.local.entity.PlantEntity
+import com.lunentous.app.data.notifications.NotificationScheduler
 import com.lunentous.app.data.remote.dto.ApiKeyDto
 import com.lunentous.app.data.settings.ThemeVariant
 import com.lunentous.app.di.AppContainer
 import com.lunentous.app.ui.theme.LunentousExtendedTheme
 import java.time.LocalDate
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.launch
 
 /**
@@ -78,6 +86,16 @@ fun SettingsScreen(container: AppContainer) {
             ) {
                 Text("Appearance", style = MaterialTheme.typography.titleMedium)
                 AppearancePicker(container)
+            }
+        }
+
+        OutlinedCard(shape = MaterialTheme.shapes.medium) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text("Notifications", style = MaterialTheme.typography.titleMedium)
+                NotificationTimeSection(container)
             }
         }
 
@@ -154,6 +172,45 @@ private fun AppearancePicker(container: AppContainer) {
                 Text(label)
             }
         }
+    }
+}
+
+/** ReminderNotificationWorker fires once daily at this time (see
+ * NotificationScheduler) -- changing it here reschedules immediately
+ * rather than waiting for the next scheduled run to pick it up. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun NotificationTimeSection(container: AppContainer) {
+    val time by container.notificationScheduleStore.time.collectAsState()
+    var showPicker by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("Daily reminder check", style = MaterialTheme.typography.bodyMedium)
+        OutlinedButton(onClick = { showPicker = true }) {
+            Text(time.format(DateTimeFormatter.ofPattern("h:mm a")))
+        }
+    }
+
+    if (showPicker) {
+        val pickerState = rememberTimePickerState(initialHour = time.hour, initialMinute = time.minute, is24Hour = false)
+        AlertDialog(
+            onDismissRequest = { showPicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    val newTime = LocalTime.of(pickerState.hour, pickerState.minute)
+                    container.notificationScheduleStore.setTime(newTime)
+                    NotificationScheduler.scheduleNext(context, newTime)
+                    showPicker = false
+                }) { Text("OK") }
+            },
+            dismissButton = { TextButton(onClick = { showPicker = false }) { Text("Cancel") } },
+            text = { TimePicker(state = pickerState) },
+        )
     }
 }
 

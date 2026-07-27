@@ -10,12 +10,10 @@ import kotlinx.coroutines.flow.first
 /**
  * Periodic (~4h, see SyncScheduler) background refresh so data stays
  * reasonably fresh even without the user opening the app -- a no-op when
- * no server is connected. Also doubles as the on-device reminder poll:
- * once reminder_states is freshly pulled, ReminderNotifier checks it for
- * anything due/overdue and not yet notified and posts local notifications
- * for it -- the server's `notified` column and this worker's schedule are
- * exactly what ARCHITECTURE.md's Android section describes that flow
- * needing.
+ * no server is connected. Actually posting reminder notifications is
+ * ReminderNotificationWorker's job, scheduled for the user's chosen time
+ * of day (see data/notifications/NotificationScheduler.kt) rather than
+ * whenever this happens to run.
  */
 class PullSyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
@@ -33,7 +31,6 @@ class PullSyncWorker(context: Context, params: WorkerParameters) : CoroutineWork
                 container.phaseWindowRepository.pullSyncForPlant(plant.localId)
                 container.timelineRepository.pullSyncForPlant(plant.localId)
             }
-            container.reminderNotifier.checkAndNotify()
             refreshLunentousWidget(applicationContext)
         }.fold(onSuccess = { Result.success() }, onFailure = { Result.retry() })
     }
