@@ -67,7 +67,13 @@ private data class RawData(
     val reminderStates: List<ReminderStateEntity>,
 )
 
-private const val WINDOW_MONTHS = 4L
+// Not truly infinite/lazily-extended (the original spec's own
+// implementation notes call out switching to a virtualized custom Layout
+// once the window gets into the hundreds-of-columns range) -- 24 months
+// is a large-but-bounded window instead, which is simple (still a plain
+// Row, no virtualization) and, for a personal plant-care app with a
+// handful of plants, effectively as far as anyone will ever scroll.
+private const val WINDOW_MONTHS = 24L
 
 /**
  * Builds the multi-month care timeline (range activities = phase windows,
@@ -217,6 +223,12 @@ private fun buildUiState(raw: RawData, weeks: List<WeekInfo>, windowStart: Local
     val events = mutableListOf<CareEvent>()
     val windowStartStr = windowStart.toString()
     val windowEndStr = windowEnd.toString()
+    // projectOccurrencesInRange's own default cap (500) comfortably
+    // covered the old 4-month window, but a daily-interval reminder over
+    // the current much longer window needs up to one iteration per day --
+    // sized to the window's actual span (with slack) so nothing near the
+    // end silently goes missing.
+    val maxProjectionIterations = (windowEnd.toEpochDay() - windowStart.toEpochDay()).toInt() + 50
     for (state in raw.reminderStates) {
         val dueDate = state.dueDate ?: continue
         val plant = plantsById[state.plantLocalId] ?: continue
@@ -224,7 +236,7 @@ private fun buildUiState(raw: RawData, weeks: List<WeekInfo>, windowStart: Local
         val activityId = "reminder-${type.localId}"
         val rule = rulesByPlantAndType[state.plantLocalId to state.reminderTypeLocalId]
         val occurrences = if (rule != null) {
-            DateMath.projectOccurrencesInRange(dueDate, rule.rule.defaultIntervalDays, rule.overridePeriods, windowStartStr, windowEndStr)
+            DateMath.projectOccurrencesInRange(dueDate, rule.rule.defaultIntervalDays, rule.overridePeriods, windowStartStr, windowEndStr, maxProjectionIterations)
         } else if (dueDate in windowStartStr..windowEndStr) {
             listOf(dueDate)
         } else {
