@@ -1,5 +1,6 @@
 package com.lunentous.app.ui.plant
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,12 +10,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Card
@@ -26,27 +29,40 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.lunentous.app.data.local.entity.PlantEntity
+import com.lunentous.app.data.local.entity.ReminderTypeEntity
 import com.lunentous.app.data.remote.buildPhotoUrl
+import com.lunentous.app.data.repository.ReminderRuleWithPeriods
 import com.lunentous.app.di.AppContainer
 import com.lunentous.app.ui.components.PlantAvatar
+import com.lunentous.app.ui.icons.iconFor
 import com.lunentous.app.ui.theme.LunentousExtendedTheme
 
-/** Hero card (photo/info), edit, and archive/unarchive -- mirrors the top
- * section of web/src/pages/PlantDetail.tsx. Reminder rules, phase windows,
- * and the timeline feed land in the next build steps (Android plan's Build
- * ordering). */
+private sealed interface RuleFormTarget {
+    data object Create : RuleFormTarget
+    data class Edit(val rule: ReminderRuleWithPeriods) : RuleFormTarget
+}
+
+/** Hero card (photo/info), edit, and archive/unarchive, plus the reminder
+ * rules section -- mirrors web/src/pages/PlantDetail.tsx. Phase windows
+ * and the timeline feed land in the next build steps (Android plan's
+ * Build ordering). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlantDetailScreen(
@@ -60,6 +76,9 @@ fun PlantDetailScreen(
         factory = viewModelFactory { initializer { PlantDetailViewModel(container, plantLocalId) } },
     )
     val plant by viewModel.plant.collectAsState()
+    val reminderRules by viewModel.reminderRules.collectAsState()
+    val reminderTypes by viewModel.reminderTypes.collectAsState()
+    var ruleFormTarget by remember { mutableStateOf<RuleFormTarget?>(null) }
     val colors = LunentousExtendedTheme.colors
     val baseUrl = container.sessionStore.getBaseUrl()
 
@@ -134,6 +153,100 @@ fun PlantDetailScreen(
                                 Text(" Archive", modifier = Modifier.padding(start = 4.dp))
                             }
                         }
+                    }
+                }
+            }
+
+            ReminderRulesSection(
+                rules = reminderRules,
+                types = reminderTypes,
+                onAdd = { ruleFormTarget = RuleFormTarget.Create },
+                onEdit = { rule -> ruleFormTarget = RuleFormTarget.Edit(rule) },
+            )
+        }
+    }
+
+    ruleFormTarget?.let { target ->
+        val existing = (target as? RuleFormTarget.Edit)?.rule
+        val usedTypeLocalIds = reminderRules.map { it.rule.reminderTypeLocalId }.toSet()
+        val selectableTypes = reminderTypes.filter { it.localId !in usedTypeLocalIds || it.localId == existing?.rule?.reminderTypeLocalId }
+        ReminderRuleFormSheet(
+            selectableTypes = selectableTypes,
+            existing = existing,
+            isSaving = viewModel.isSavingRule,
+            error = viewModel.ruleError,
+            onDismiss = { ruleFormTarget = null },
+            onSave = { reminderTypeLocalId, defaultIntervalDays, periods ->
+                viewModel.saveReminderRule(existing?.rule?.localId, reminderTypeLocalId, defaultIntervalDays, periods) {
+                    ruleFormTarget = null
+                }
+            },
+            onDelete = existing?.let { e ->
+                { viewModel.deleteReminderRule(e.rule.localId) { ruleFormTarget = null } }
+            },
+        )
+    }
+}
+
+@Composable
+private fun ReminderRulesSection(
+    rules: List<ReminderRuleWithPeriods>,
+    types: List<ReminderTypeEntity>,
+    onAdd: () -> Unit,
+    onEdit: (ReminderRuleWithPeriods) -> Unit,
+) {
+    val colors = LunentousExtendedTheme.colors
+    val typesById = types.associateBy { it.localId }
+    val hasAvailableType = types.any { type -> rules.none { it.rule.reminderTypeLocalId == type.localId } }
+
+    Column(modifier = Modifier.padding(top = 20.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Reminder rules", style = MaterialTheme.typography.titleLarge)
+            if (hasAvailableType) {
+                TextButton(onClick = onAdd) {
+                    Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Text(" Add", modifier = Modifier.padding(start = 2.dp))
+                }
+            }
+        }
+
+        if (rules.isEmpty()) {
+            Text("No reminder rules yet.", color = colors.textMuted, modifier = Modifier.padding(top = 4.dp))
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+            rules.forEach { ruleWithPeriods ->
+                val type = typesById[ruleWithPeriods.rule.reminderTypeLocalId]
+                val typeColor = type?.color?.let { runCatching { Color(android.graphics.Color.parseColor(it)) }.getOrNull() } ?: colors.accent
+                val interval = ruleWithPeriods.rule.defaultIntervalDays
+                val summary = buildString {
+                    append(if (interval != null) "Every $interval days" else "Paused by default")
+                    if (ruleWithPeriods.overridePeriods.isNotEmpty()) {
+                        append(" · ${ruleWithPeriods.overridePeriods.size} override${if (ruleWithPeriods.overridePeriods.size == 1) "" else "s"}")
+                    }
+                }
+
+                Card(onClick = { onEdit(ruleWithPeriods) }, modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Box(
+                            Modifier.size(32.dp).background(color = typeColor.copy(alpha = 0.16f), shape = CircleShape),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(iconFor(type?.icon), contentDescription = null, tint = typeColor, modifier = Modifier.size(16.dp))
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(type?.name ?: "Unknown type", style = MaterialTheme.typography.bodyMedium)
+                            Text(summary, style = MaterialTheme.typography.bodySmall, color = colors.textMuted)
+                        }
+                        Icon(Icons.Filled.Edit, contentDescription = "Edit reminder rule", tint = colors.textMuted, modifier = Modifier.size(18.dp))
                     }
                 }
             }
