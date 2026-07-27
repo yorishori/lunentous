@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.lunentous.app.data.auth.SessionStore
 import com.lunentous.app.data.local.LunentousDatabase
 import com.lunentous.app.data.remote.NetworkModule
+import com.lunentous.app.data.repository.AccountRepository
 import com.lunentous.app.data.repository.PhaseTypeRepository
 import com.lunentous.app.data.repository.PhaseWindowRepository
 import com.lunentous.app.data.repository.PlantRepository
@@ -63,4 +64,5 @@ class AppContainer(context: Context) {
         api,
         sessionStore,
     )
+    val accountRepository = AccountRepository(api, sessionStore)
 }
