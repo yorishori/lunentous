@@ -60,6 +60,16 @@ Then open `http://localhost:8080` (or whatever `PORT` you set) and hit
 key once, either by running the CLI script inside the container or locally
 against the same DB file before starting the container.
 
+### Publishing to GHCR
+
+```bash
+scripts/publish-ghcr.sh [tag]   # tag defaults to "latest"
+```
+
+Builds the image and pushes it to `ghcr.io/yorishori/lunentous`, tagged with
+both `[tag]` and the current git short SHA. Prompts for a GitHub PAT
+(`write:packages` scope) on every run instead of storing one anywhere.
+
 ## Environment variables
 
 | Variable      | Default              | Purpose                                  |
