@@ -411,8 +411,8 @@ existing mutation in the codebase, not an exception.
 
 ## Android
 
-`android/` has a toolchain scaffold, an app shell, and a complete data
-layer — but no real screens yet (everything still renders a placeholder).
+`android/` has a toolchain scaffold, an app shell, a complete data layer,
+and the Dashboard + Plant Detail screens (phases 1–3 of the build plan).
 Built so far: a Catppuccin-themed adaptive nav shell (bottom bar in
 portrait / rail in landscape, icons-only, 5 destinations mirroring the
 web's nav); an optional server connection (URL + API key, Keystore-
@@ -420,9 +420,17 @@ encrypted, managed from Settings rather than a login gate — the app works
 fully standalone); a Room database mirroring every server entity
 (local-ID-first, server-ID nullable and lazily resolved); a Retrofit
 client (`LunentousApi`) covering the full REST surface documented above;
-and repositories that read from Room and write through to the network
-when connected, or straight to Room (local-only) when not — no outbox/
-write-queue yet, that's a later phase. See `android/README.md` for the
+repositories that read from Room and write through to the network when
+connected, or straight to Room (local-only) when not, resolving related
+entities' server IDs internally so callers only ever pass local IDs — no
+outbox/write-queue yet, that's a later phase; a Dashboard screen (overdue/
+next-tasks lists, plant grid, mark-done, pull-to-refresh); and a Plant
+Detail screen (hero card with archive/unarchive, reminder rules, phase
+windows, and a timeline feed, each with a shared Compose `ModalBottomSheet`
+create/edit form — collapsed from the web's multi-step wizard into a
+single scrollable sheet, and with photo capture/upload deferred to the
+camera-capture phase). Calendar, Reminder/Phase Types, and the rest of
+Settings still render placeholders. See `android/README.md` for the
 (sudo-free) toolchain setup and how to build/install on a physical device,
 and the architecture plan this is being built from for the full design
 (the offline-first outbox/conflict/provisional-due-date design, the
