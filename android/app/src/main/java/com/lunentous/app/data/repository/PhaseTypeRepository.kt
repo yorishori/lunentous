@@ -83,6 +83,7 @@ class PhaseTypeRepository(
                 OutboxResult.Success
             }
             OutboxOpType.DELETE -> error("Phase types have no DELETE op -- archive-only")
+            OutboxOpType.APPEND_PHOTOS -> error("Phase types don't support APPEND_PHOTOS")
         }
     }
 

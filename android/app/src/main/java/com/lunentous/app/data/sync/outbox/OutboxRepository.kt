@@ -99,6 +99,21 @@ class OutboxRepository(private val dao: OutboxDao, private val gson: Gson, priva
         SyncScheduler.triggerOutboxSync(appContext)
     }
 
+    /** No squashing -- each call just adds its own op, so photos captured
+     * in separate sessions each get their own (small) upload request
+     * instead of needing to track and merge a growing pending file list. */
+    suspend fun enqueueAppendPhotos(entityType: OutboxEntityType, entityLocalId: Long, payload: Any) {
+        dao.insert(
+            OutboxOperationEntity(
+                entityType = entityType,
+                entityLocalId = entityLocalId,
+                opType = OutboxOpType.APPEND_PHOTOS,
+                payloadJson = gson.toJson(payload),
+            ),
+        )
+        SyncScheduler.triggerOutboxSync(appContext)
+    }
+
     suspend fun markInFlight(id: Long) = dao.setStatus(id, OutboxStatus.IN_FLIGHT)
     suspend fun markPending(id: Long) = dao.setStatus(id, OutboxStatus.PENDING)
     suspend fun markFailed(id: Long, error: String?) = dao.markFailed(id, error)

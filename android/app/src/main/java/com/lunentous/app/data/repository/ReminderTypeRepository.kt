@@ -88,6 +88,7 @@ class ReminderTypeRepository(
                 OutboxResult.Success
             }
             OutboxOpType.DELETE -> error("Reminder types have no DELETE op -- archive-only")
+            OutboxOpType.APPEND_PHOTOS -> error("Reminder types don't support APPEND_PHOTOS")
         }
     }
 

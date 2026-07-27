@@ -28,4 +28,14 @@ interface PhotoDao {
 
     @Query("DELETE FROM photos WHERE timelineEventLocalId = :eventLocalId")
     suspend fun deleteByTimelineEvent(eventLocalId: Long)
+
+    /** Called right before reconciling a server response that returns an
+     * event's complete authoritative photo list (a successful CREATE or
+     * APPEND_PHOTOS outbox op) -- local-only rows (no serverId, so not yet
+     * uploaded) can't be matched to the response's DTOs, so without this
+     * they'd end up duplicated alongside the newly-inserted server-backed
+     * rows. Never called from routine pull sync, which would otherwise
+     * wipe out a still-pending capture's local preview. */
+    @Query("DELETE FROM photos WHERE timelineEventLocalId = :eventLocalId AND serverId IS NULL")
+    suspend fun deleteLocalOnlyForEvent(eventLocalId: Long)
 }

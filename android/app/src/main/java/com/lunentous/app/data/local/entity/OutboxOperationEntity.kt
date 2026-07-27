@@ -10,8 +10,11 @@ enum class OutboxEntityType { PLANT, REMINDER_TYPE, PHASE_TYPE, REMINDER_RULE, P
 
 /** Not every entity supports every op -- Plant/ReminderType/PhaseType are
  * archive-only (no server DELETE), ReminderRule/PhaseWindow/TimelineEvent
- * are delete-only (no archive), matching LunentousApi's actual endpoints. */
-enum class OutboxOpType { CREATE, UPDATE, DELETE, ARCHIVE, UNARCHIVE }
+ * are delete-only (no archive), matching LunentousApi's actual endpoints.
+ * APPEND_PHOTOS is TIMELINE_EVENT-only, for photos captured onto an
+ * already-existing entry (see TimelineRepository.appendPhotos) --
+ * independent of that event's own CREATE/UPDATE/DELETE lifecycle. */
+enum class OutboxOpType { CREATE, UPDATE, DELETE, ARCHIVE, UNARCHIVE, APPEND_PHOTOS }
 
 enum class OutboxStatus { PENDING, IN_FLIGHT, FAILED }
 

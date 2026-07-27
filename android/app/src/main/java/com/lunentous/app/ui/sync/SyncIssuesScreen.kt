@@ -95,6 +95,7 @@ private fun OutboxOpType.label(): String = when (this) {
     OutboxOpType.DELETE -> "Delete"
     OutboxOpType.ARCHIVE -> "Archive"
     OutboxOpType.UNARCHIVE -> "Unarchive"
+    OutboxOpType.APPEND_PHOTOS -> "Upload photos for"
 }
 
 private fun OutboxEntityType.label(): String = when (this) {

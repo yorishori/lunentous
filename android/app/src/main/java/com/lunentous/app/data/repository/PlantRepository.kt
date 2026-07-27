@@ -156,6 +156,7 @@ class PlantRepository(
                 OutboxResult.Success
             }
             OutboxOpType.DELETE -> error("Plants have no DELETE op -- archive-only")
+            OutboxOpType.APPEND_PHOTOS -> error("Plants don't support APPEND_PHOTOS")
         }
     }
 

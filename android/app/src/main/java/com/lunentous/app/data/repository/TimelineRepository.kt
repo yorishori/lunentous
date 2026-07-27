@@ -30,7 +30,13 @@ import okhttp3.RequestBody.Companion.toRequestBody
 
 data class TimelineEventWithPhotos(val event: TimelineEventEntity, val photos: List<PhotoEntity>)
 
-private data class TimelinePayload(val eventDate: String, val reminderTypeLocalId: Long?, val text: String?)
+private data class TimelinePayload(
+    val eventDate: String,
+    val reminderTypeLocalId: Long?,
+    val text: String?,
+    val localPhotoPaths: List<String> = emptyList(),
+)
+private data class AppendPhotosPayload(val localPhotoPaths: List<String>)
 
 /**
  * Note: like reminder rules, an event tagged with a reminder type
@@ -40,11 +46,11 @@ private data class TimelinePayload(val eventDate: String, val reminderTypeLocalI
  * outbox op's eventual success with a targeted
  * ReminderStateRepository.pullSyncForPlant().
  *
- * Photos aren't part of the outbox yet -- offline photo capture is the
- * phase-6 camera work, which will need its own multipart-capable outbox
- * op type. createEvent's photoFiles param still writes local rows so a
- * future caller isn't blocked, but nothing currently calls it with files,
- * and the CREATE/UPDATE outbox payload never carries them.
+ * Photos captured on a new entry travel inside the CREATE payload as
+ * local file paths (Gson can't serialize file bytes, so the outbox
+ * handler re-reads them from disk when the op actually runs); photos
+ * appended to an already-existing entry get their own APPEND_PHOTOS op,
+ * independent of that entry's CREATE/UPDATE/DELETE lifecycle.
  *
  * plantDao/reminderTypeDao are held only to resolve local IDs to server
  * IDs for outgoing requests -- callers never look these up themselves.
@@ -88,7 +94,7 @@ class TimelineRepository(
             val photo = PhotoEntity(plantLocalId = plantLocalId, timelineEventLocalId = eventLocalId, localFileUri = file.absolutePath)
             photo.copy(localId = photoDao.upsert(photo))
         }
-        outboxRepository.enqueueCreate(entityType, eventLocalId, TimelinePayload(eventDate, reminderTypeLocalId, text))
+        outboxRepository.enqueueCreate(entityType, eventLocalId, TimelinePayload(eventDate, reminderTypeLocalId, text, photoFiles.map { it.absolutePath }))
         if (reminderTypeLocalId != null) provisionalCalculator.recompute(plantLocalId, reminderTypeLocalId)
         TimelineEventWithPhotos(event.copy(localId = eventLocalId), photos)
     }
@@ -109,20 +115,19 @@ class TimelineRepository(
         TimelineEventWithPhotos(updated, photoDao.getByTimelineEvents(listOf(eventLocalId)))
     }
 
-    /** Still network-passthrough -- see the class doc on why photos aren't
-     * queued through the outbox yet. */
+    /** Always local-first-then-enqueue now, same as every other write --
+     * previously this blocked on the network when connected and only
+     * wrote local, upload-less rows when it wasn't (see the Android
+     * plan's Build ordering; this repo was the last one still doing
+     * that). */
     suspend fun appendPhotos(eventLocalId: Long, photoFiles: List<File>): Result<TimelineEventWithPhotos> = runCatching {
         val existing = eventDao.getByLocalId(eventLocalId) ?: error("Timeline event $eventLocalId not found locally")
-        if (sessionStore.hasSession() && existing.serverId != null) {
-            val dto = api.appendTimelinePhotos(existing.serverId, photoFiles.toMultipartParts())
-            upsertFromDto(dto, existing.plantLocalId, existing.reminderTypeLocalId, preserveLocalId = eventLocalId)
-        } else {
-            val newPhotos = photoFiles.map { file ->
-                val photo = PhotoEntity(plantLocalId = existing.plantLocalId, timelineEventLocalId = eventLocalId, localFileUri = file.absolutePath)
-                photo.copy(localId = photoDao.upsert(photo))
-            }
-            TimelineEventWithPhotos(existing, photoDao.getByTimelineEvents(listOf(eventLocalId)) + newPhotos)
+        val newPhotos = photoFiles.map { file ->
+            val photo = PhotoEntity(plantLocalId = existing.plantLocalId, timelineEventLocalId = eventLocalId, localFileUri = file.absolutePath, pendingSync = true)
+            photo.copy(localId = photoDao.upsert(photo))
         }
+        outboxRepository.enqueueAppendPhotos(entityType, eventLocalId, AppendPhotosPayload(photoFiles.map { it.absolutePath }))
+        TimelineEventWithPhotos(existing, photoDao.getByTimelineEvents(listOf(eventLocalId)) + newPhotos)
     }
 
     suspend fun deleteEvent(eventLocalId: Long): Result<Unit> = runCatching {
@@ -141,8 +146,10 @@ class TimelineRepository(
         existing.reminderTypeLocalId?.let { provisionalCalculator.recompute(existing.plantLocalId, it) }
     }
 
-    /** Still network-passthrough -- see the class doc on why photos aren't
-     * queued through the outbox yet. */
+    /** Still network-passthrough -- a single photo delete-by-id has
+     * nowhere useful to queue to if the photo was never uploaded in the
+     * first place (deleteByLocalId below already handles that case
+     * without a network call). */
     suspend fun deletePhoto(photoLocalId: Long, photoServerId: Long?): Result<Unit> = runCatching {
         if (sessionStore.hasSession() && photoServerId != null) {
             api.deletePhoto(photoServerId)
@@ -182,8 +189,9 @@ class TimelineRepository(
                     payload.eventDate.toRequestBody("text/plain".toMediaType()),
                     reminderTypeServerId?.toString()?.toRequestBody("text/plain".toMediaType()),
                     payload.text?.toRequestBody("text/plain".toMediaType()),
-                    emptyList(),
+                    payload.localPhotoPaths.toMultipartParts(),
                 )
+                photoDao.deleteLocalOnlyForEvent(op.entityLocalId)
                 upsertFromDto(dto, event.plantLocalId, payload.reminderTypeLocalId, preserveLocalId = op.entityLocalId)
                 OutboxResult.Success
             }
@@ -197,13 +205,21 @@ class TimelineRepository(
                 upsertFromDto(dto, event.plantLocalId, payload.reminderTypeLocalId, preserveLocalId = op.entityLocalId)
                 OutboxResult.Success
             }
+            OutboxOpType.APPEND_PHOTOS -> {
+                val serverId = event.serverId ?: return OutboxResult.CascadeFailed
+                val payload = gson.fromJson(op.payloadJson, AppendPhotosPayload::class.java)
+                val dto = api.appendTimelinePhotos(serverId, payload.localPhotoPaths.toMultipartParts())
+                photoDao.deleteLocalOnlyForEvent(op.entityLocalId)
+                upsertFromDto(dto, event.plantLocalId, event.reminderTypeLocalId, preserveLocalId = op.entityLocalId)
+                OutboxResult.Success
+            }
             OutboxOpType.DELETE -> {
                 event.serverId?.let { api.deleteTimelineEvent(it) }
                 photoDao.deleteByTimelineEvent(op.entityLocalId)
                 eventDao.deleteByLocalId(op.entityLocalId)
                 OutboxResult.Success
             }
-            else -> error("Timeline events only support CREATE/UPDATE/DELETE")
+            else -> error("Timeline events don't support ${op.opType}")
         }
     }
 
@@ -251,7 +267,8 @@ class TimelineRepository(
         return map { event -> TimelineEventWithPhotos(event, photosByEvent[event.localId].orEmpty()) }
     }
 
-    private fun List<File>.toMultipartParts(): List<MultipartBody.Part> = map { file ->
+    private fun List<String>.toMultipartParts(): List<MultipartBody.Part> = map { path ->
+        val file = File(path)
         val body: RequestBody = file.asRequestBody("image/*".toMediaType())
         MultipartBody.Part.createFormData("photo", file.name, body)
     }
