@@ -1,7 +1,10 @@
 package com.lunentous.app.ui.nav
 
 import android.content.res.Configuration
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
@@ -95,12 +98,17 @@ fun MainScaffold(container: AppContainer, deepLinkTarget: DeepLinkTarget? = null
     Row(modifier = Modifier.fillMaxSize()) {
         if (isLandscape) {
             NavigationRail {
-                NavDestination.entries.forEach { destination ->
-                    NavigationRailItem(
-                        selected = currentRoute == destination.route,
-                        onClick = { navigateTo(navController, destination) },
-                        icon = { Icon(destination.icon, contentDescription = destination.label) },
-                    )
+                Column(
+                    modifier = Modifier.fillMaxHeight(),
+                    verticalArrangement = Arrangement.SpaceEvenly,
+                ) {
+                    NavDestination.entries.forEach { destination ->
+                        NavigationRailItem(
+                            selected = currentRoute == destination.route,
+                            onClick = { navigateTo(navController, destination) },
+                            icon = { Icon(destination.icon, contentDescription = destination.label) },
+                        )
+                    }
                 }
             }
         }
