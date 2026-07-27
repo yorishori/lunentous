@@ -1,6 +1,7 @@
 package com.lunentous.app.ui.plant
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -10,9 +11,13 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -38,8 +43,10 @@ import com.lunentous.app.data.local.entity.PlantEntity
 import com.lunentous.app.data.remote.buildPhotoUrl
 import com.lunentous.app.di.AppContainer
 import com.lunentous.app.ui.camera.rememberCameraCaptureLauncher
+import com.lunentous.app.ui.camera.rememberGalleryPickerLauncher
 import com.lunentous.app.ui.components.PlantAvatar
 import com.lunentous.app.ui.theme.LunentousExtendedTheme
+import java.io.File
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -79,18 +86,23 @@ fun PlantFormSheet(
     var avatarUploading by remember { mutableStateOf(false) }
     var avatarPhotoPath by remember { mutableStateOf(existing?.avatarPhotoPath) }
 
-    val takeAvatarPhoto = rememberCameraCaptureLauncher { file ->
-        val plantLocalId = existing?.localId ?: return@rememberCameraCaptureLauncher
-        scope.launch {
-            avatarUploading = true
-            error = null
-            val part = MultipartBody.Part.createFormData("file", file.name, file.asRequestBody("image/*".toMediaType()))
-            container.plantRepository.uploadAvatar(plantLocalId, part)
-                .onSuccess { avatarPhotoPath = it.avatarPhotoPath }
-                .onFailure { error = it.message ?: "Failed to upload avatar" }
-            avatarUploading = false
+    val onAvatarPhoto: (File) -> Unit = { file ->
+        val plantLocalId = existing?.localId
+        if (plantLocalId != null) {
+            scope.launch {
+                avatarUploading = true
+                error = null
+                val part = MultipartBody.Part.createFormData("file", file.name, file.asRequestBody("image/*".toMediaType()))
+                container.plantRepository.uploadAvatar(plantLocalId, part)
+                    .onSuccess { avatarPhotoPath = it.avatarPhotoPath }
+                    .onFailure { error = it.message ?: "Failed to upload avatar" }
+                avatarUploading = false
+            }
         }
     }
+    val takeAvatarPhoto = rememberCameraCaptureLauncher(onAvatarPhoto)
+    val pickAvatarFromGallery = rememberGalleryPickerLauncher(onAvatarPhoto)
+    var avatarMenuExpanded by remember { mutableStateOf(false) }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
@@ -101,9 +113,23 @@ fun PlantFormSheet(
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(bottom = 14.dp)) {
                     PlantAvatar(photoUrl = buildPhotoUrl(container.sessionStore.getBaseUrl(), avatarPhotoPath), size = 56.dp)
                     if (existing.serverId != null) {
-                        OutlinedButton(onClick = takeAvatarPhoto, enabled = !avatarUploading) {
-                            Icon(Icons.Filled.AddAPhoto, contentDescription = null, modifier = Modifier.padding(end = 4.dp))
-                            Text(if (avatarUploading) "Uploading…" else "Change photo")
+                        Box {
+                            OutlinedButton(onClick = { avatarMenuExpanded = true }, enabled = !avatarUploading) {
+                                Icon(Icons.Filled.AddAPhoto, contentDescription = null, modifier = Modifier.padding(end = 4.dp))
+                                Text(if (avatarUploading) "Uploading…" else "Change photo")
+                            }
+                            DropdownMenu(expanded = avatarMenuExpanded, onDismissRequest = { avatarMenuExpanded = false }) {
+                                DropdownMenuItem(
+                                    text = { Text("Take photo") },
+                                    leadingIcon = { Icon(Icons.Filled.CameraAlt, contentDescription = null) },
+                                    onClick = { avatarMenuExpanded = false; takeAvatarPhoto() },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Choose from gallery") },
+                                    leadingIcon = { Icon(Icons.Filled.Image, contentDescription = null) },
+                                    onClick = { avatarMenuExpanded = false; pickAvatarFromGallery() },
+                                )
+                            }
                         }
                     } else {
                         Text("Avatar photo available once this plant has synced", style = MaterialTheme.typography.bodySmall, color = colors.textMuted)

@@ -34,7 +34,7 @@ import com.lunentous.app.ui.plant.PlantDetailScreen
 import com.lunentous.app.ui.plant.PlantFormSheet
 import com.lunentous.app.ui.plant.PlantFormTarget
 import com.lunentous.app.ui.settings.SettingsScreen
-import com.lunentous.app.ui.share.importSharedImage
+import com.lunentous.app.ui.photos.importImageToLocalFile
 import com.lunentous.app.ui.sync.SyncIssuesScreen
 import com.lunentous.app.ui.sync.SyncStatusBar
 import com.lunentous.app.ui.types.PhaseTypesScreen
@@ -81,7 +81,7 @@ fun MainScaffold(container: AppContainer, deepLinkTarget: DeepLinkTarget? = null
             DeepLinkTarget.Calendar -> navigateTo(navController, NavDestination.Calendar)
             DeepLinkTarget.NewTimelineEntry -> navigateTo(navController, NavDestination.Calendar)
             is DeepLinkTarget.ShareImage -> {
-                val file = withContext(Dispatchers.IO) { importSharedImage(context, target.uri) }
+                val file = withContext(Dispatchers.IO) { importImageToLocalFile(context, target.uri) }
                 if (file != null) {
                     sharedPhotoFile = file
                     navigateTo(navController, NavDestination.Calendar)

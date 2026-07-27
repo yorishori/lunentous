@@ -31,7 +31,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.Composable
@@ -48,7 +47,7 @@ import com.lunentous.app.data.local.entity.PlantEntity
 import com.lunentous.app.data.local.entity.ReminderTypeEntity
 import com.lunentous.app.data.remote.photoDisplayModel
 import com.lunentous.app.data.repository.TimelineEventWithPhotos
-import com.lunentous.app.ui.camera.rememberCameraCaptureLauncher
+import com.lunentous.app.ui.camera.AddPhotoButton
 import com.lunentous.app.ui.theme.LunentousExtendedTheme
 import java.io.File
 import java.time.Instant
@@ -98,7 +97,7 @@ fun TimelineEntryFormSheet(
     var text by remember { mutableStateOf(existing?.event?.text ?: "") }
     var pendingPhotos by remember { mutableStateOf(initialPhotos) }
 
-    val takePhoto = rememberCameraCaptureLauncher { file ->
+    val onPhoto: (File) -> Unit = { file ->
         if (existing != null && onAppendPhotos != null) {
             onAppendPhotos(existing.event.localId, listOf(file))
         } else {
@@ -199,9 +198,7 @@ fun TimelineEntryFormSheet(
                     }
                 }
                 item {
-                    OutlinedButton(onClick = takePhoto, modifier = Modifier.size(64.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
-                        Icon(Icons.Filled.AddAPhoto, contentDescription = "Take photo")
-                    }
+                    AddPhotoButton(onPhoto = onPhoto)
                 }
             }
 
