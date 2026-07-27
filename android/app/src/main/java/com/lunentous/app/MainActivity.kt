@@ -6,13 +6,8 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.lunentous.app.data.auth.SessionStore
-import com.lunentous.app.ui.login.LoginScreen
 import com.lunentous.app.ui.nav.MainScaffold
 import com.lunentous.app.ui.theme.LunentousTheme
 
@@ -26,17 +21,16 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/**
+ * No login gate -- the app is fully usable standalone, with all data
+ * local-only, and connecting to a server is an optional action from the
+ * Settings screen rather than a precondition for using anything else.
+ */
 @Composable
 fun LunentousApp(sessionStore: SessionStore) {
-    var loggedIn by remember { mutableStateOf(sessionStore.hasSession()) }
-
     LunentousTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
-            if (loggedIn) {
-                MainScaffold()
-            } else {
-                LoginScreen(sessionStore = sessionStore, onLoggedIn = { loggedIn = true })
-            }
+            MainScaffold(sessionStore = sessionStore)
         }
     }
 }

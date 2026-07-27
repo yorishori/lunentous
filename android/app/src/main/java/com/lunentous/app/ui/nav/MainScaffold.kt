@@ -24,6 +24,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.lunentous.app.data.auth.SessionStore
+import com.lunentous.app.ui.settings.SettingsScreen
 
 /**
  * Adaptive shell: bottom NavigationBar (icons only) in portrait, side
@@ -31,7 +33,7 @@ import androidx.navigation.compose.rememberNavController
  * adaptive pattern, switched on orientation per the Android plan.
  */
 @Composable
-fun MainScaffold() {
+fun MainScaffold(sessionStore: SessionStore) {
     val navController = rememberNavController()
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
@@ -72,10 +74,14 @@ fun MainScaffold() {
             ) {
                 NavDestination.entries.forEach { destination ->
                     composable(destination.route) {
-                        // Real screens land in later build phases -- see the
-                        // Android plan's Build ordering. This proves the nav
-                        // shell works end to end in the meantime.
-                        PlaceholderScreen(destination.label)
+                        if (destination == NavDestination.Settings) {
+                            SettingsScreen(sessionStore = sessionStore)
+                        } else {
+                            // Real screens land in later build phases -- see
+                            // the Android plan's Build ordering. This proves
+                            // the nav shell works end to end in the meantime.
+                            PlaceholderScreen(destination.label)
+                        }
                     }
                 }
             }
