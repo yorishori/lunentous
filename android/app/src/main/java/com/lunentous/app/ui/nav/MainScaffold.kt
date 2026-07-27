@@ -82,6 +82,16 @@ fun MainScaffold(container: AppContainer, deepLinkTarget: DeepLinkTarget? = null
     // Calendar screen.
     var promptNewEntry by remember { mutableStateOf(false) }
 
+    // Bumped every time the Dashboard nav item is tapped -- consumed by
+    // DashboardScreen to scroll back to the top, so tapping it while
+    // already there (or from anywhere else) always lands on a fresh view
+    // rather than wherever the user had scrolled to.
+    var dashboardResetSignal by remember { mutableStateOf(0) }
+    val onNavItemClick: (NavDestination) -> Unit = { destination ->
+        if (destination == NavDestination.Dashboard) dashboardResetSignal++
+        navigateTo(navController, destination)
+    }
+
     // Widget tap / app shortcut / share-to-app / notification tap all land
     // here as a DeepLinkTarget, parsed once from the launching Intent (see
     // MainActivity). Runs once per new target rather than on every
@@ -117,7 +127,7 @@ fun MainScaffold(container: AppContainer, deepLinkTarget: DeepLinkTarget? = null
                     NavDestination.entries.forEach { destination ->
                         NavigationRailItem(
                             selected = currentRoute == destination.route,
-                            onClick = { navigateTo(navController, destination) },
+                            onClick = { onNavItemClick(destination) },
                             icon = { Icon(destination.icon, contentDescription = destination.label) },
                         )
                     }
@@ -127,22 +137,22 @@ fun MainScaffold(container: AppContainer, deepLinkTarget: DeepLinkTarget? = null
 
         Scaffold(
             modifier = Modifier.weight(1f),
-            topBar = {
-                SyncStatusBar(
-                    container = container,
-                    onOpenSyncIssues = { navController.navigate(SYNC_ISSUES_ROUTE) },
-                    onOpenSettings = { navigateTo(navController, NavDestination.Settings) },
-                )
-            },
             bottomBar = {
-                if (!isLandscape) {
-                    NavigationBar {
-                        NavDestination.entries.forEach { destination ->
-                            NavigationBarItem(
-                                selected = currentRoute == destination.route,
-                                onClick = { navigateTo(navController, destination) },
-                                icon = { Icon(destination.icon, contentDescription = destination.label) },
-                            )
+                Column {
+                    SyncStatusBar(
+                        container = container,
+                        onOpenSyncIssues = { navController.navigate(SYNC_ISSUES_ROUTE) },
+                        onOpenSettings = { navigateTo(navController, NavDestination.Settings) },
+                    )
+                    if (!isLandscape) {
+                        NavigationBar {
+                            NavDestination.entries.forEach { destination ->
+                                NavigationBarItem(
+                                    selected = currentRoute == destination.route,
+                                    onClick = { onNavItemClick(destination) },
+                                    icon = { Icon(destination.icon, contentDescription = destination.label) },
+                                )
+                            }
                         }
                     }
                 }
@@ -161,6 +171,7 @@ fun MainScaffold(container: AppContainer, deepLinkTarget: DeepLinkTarget? = null
                                 container = container,
                                 onPlantClick = { plantLocalId -> navController.navigate(plantDetailRoute(plantLocalId)) },
                                 onAddPlant = { plantFormTarget = PlantFormTarget.Create },
+                                resetSignal = dashboardResetSignal,
                             )
                             NavDestination.ReminderTypes -> ReminderTypesScreen(container = container)
                             NavDestination.PhaseTypes -> PhaseTypesScreen(container = container)

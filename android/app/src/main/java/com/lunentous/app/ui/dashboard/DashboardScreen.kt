@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -34,6 +35,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -61,6 +63,7 @@ fun DashboardScreen(
     container: AppContainer,
     onPlantClick: (Long) -> Unit,
     onAddPlant: () -> Unit,
+    resetSignal: Int = 0,
 ) {
     val viewModel: DashboardViewModel = viewModel(
         factory = viewModelFactory { initializer { DashboardViewModel(container) } },
@@ -69,6 +72,14 @@ fun DashboardScreen(
     val colors = LunentousExtendedTheme.colors
     val upcomingTint = MaterialTheme.colorScheme.onSurface
     val baseUrl = container.sessionStore.getBaseUrl()
+    val gridState = rememberLazyGridState()
+
+    // Tapping the Dashboard nav item (from anywhere, including while
+    // already here) bumps resetSignal -- scroll back to the top rather
+    // than leaving the grid wherever it was.
+    LaunchedEffect(resetSignal) {
+        if (resetSignal > 0) gridState.animateScrollToItem(0)
+    }
 
     Scaffold(
         floatingActionButton = {
@@ -84,6 +95,7 @@ fun DashboardScreen(
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
             } else {
                 LazyVerticalGrid(
+                    state = gridState,
                     columns = GridCells.Fixed(2),
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
