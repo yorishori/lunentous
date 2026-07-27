@@ -31,7 +31,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.lunentous.app.di.AppContainer
-import com.lunentous.app.ui.calendar.CalendarScreen
+import com.lunentous.app.ui.calendar.timeline.CareTimelineScreen
 import com.lunentous.app.ui.dashboard.DashboardScreen
 import com.lunentous.app.ui.plant.PlantDetailScreen
 import com.lunentous.app.ui.plant.PlantFormSheet
@@ -175,7 +175,7 @@ fun MainScaffold(container: AppContainer, deepLinkTarget: DeepLinkTarget? = null
                             )
                             NavDestination.ReminderTypes -> ReminderTypesScreen(container = container)
                             NavDestination.PhaseTypes -> PhaseTypesScreen(container = container)
-                            NavDestination.Calendar -> CalendarScreen(
+                            NavDestination.Calendar -> CareTimelineScreen(
                                 container = container,
                                 sharedPhotoFile = sharedPhotoFile,
                                 onSharedPhotoConsumed = { sharedPhotoFile = null },
