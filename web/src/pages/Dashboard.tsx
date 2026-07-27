@@ -6,13 +6,17 @@ import { apiFetch, ApiError } from "../api/client";
 import type { Plant, ReminderState } from "../api/types";
 import PlantCard from "../components/PlantCard";
 import ConfirmDialog from "../components/ConfirmDialog";
+import Skeleton from "../components/Skeleton";
 import { useToast } from "../components/Toast";
 import { getIcon } from "../lib/icons";
+import { hasDuplicateEntry } from "../lib/duplicateCheck";
 
 export default function Dashboard() {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const [confirming, setConfirming] = useState<ReminderState | null>(null);
+  const [duplicateExists, setDuplicateExists] = useState(false);
+  const [checkingDuplicate, setCheckingDuplicate] = useState(false);
 
   const {
     data: plants,
@@ -40,10 +44,24 @@ export default function Dashboard() {
       queryClient.invalidateQueries({ queryKey: ["plant", state.plant_id] });
       queryClient.invalidateQueries({ queryKey: ["timeline", state.plant_id] });
       showToast(`${state.reminder_type_name} marked as done`, "success");
-      setConfirming(null);
+      closeConfirm();
     },
     onError: (err) => showToast((err as ApiError).message ?? "Failed to mark as done", "error"),
   });
+
+  async function openConfirm(state: ReminderState) {
+    setConfirming(state);
+    setCheckingDuplicate(true);
+    const today = new Date().toISOString().slice(0, 10);
+    const duplicate = await hasDuplicateEntry(state.plant_id, state.reminder_type_id, today).catch(() => false);
+    setCheckingDuplicate(false);
+    setDuplicateExists(duplicate);
+  }
+
+  function closeConfirm() {
+    setConfirming(null);
+    setDuplicateExists(false);
+  }
 
   const due = (states ?? [])
     .filter((s) => s.due_date)
@@ -52,7 +70,23 @@ export default function Dashboard() {
   const overdue = due.filter((s) => (s.days_overdue ?? -1) >= 0);
   const upcoming = due.filter((s) => (s.days_overdue ?? -1) < 0).slice(0, 8);
 
-  if (isLoading) return <p>Loading plants…</p>;
+  if (isLoading) {
+    return (
+      <div className="card-grid">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="card">
+            <div style={{ display: "flex", gap: "0.85rem", alignItems: "center" }}>
+              <Skeleton width={48} height={48} style={{ borderRadius: "999px" }} />
+              <div style={{ flex: 1 }}>
+                <Skeleton width="70%" height="1.1rem" style={{ marginBottom: "0.4rem" }} />
+                <Skeleton width="45%" height="0.85rem" />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
   if (error) return <p>Failed to load plants.</p>;
 
   return (
@@ -73,7 +107,7 @@ export default function Dashboard() {
           </div>
           <div className="task-list">
             {overdue.map((s) => (
-              <TaskRow key={s.id} state={s} onMarkDone={() => setConfirming(s)} />
+              <TaskRow key={s.id} state={s} onMarkDone={() => openConfirm(s)} />
             ))}
           </div>
         </section>
@@ -88,7 +122,7 @@ export default function Dashboard() {
           </div>
           <div className="task-list">
             {upcoming.map((s) => (
-              <TaskRow key={s.id} state={s} onMarkDone={() => setConfirming(s)} />
+              <TaskRow key={s.id} state={s} onMarkDone={() => openConfirm(s)} />
             ))}
           </div>
         </section>
@@ -109,13 +143,15 @@ export default function Dashboard() {
         title="Mark as done?"
         message={
           confirming
-            ? `This logs "${confirming.reminder_type_name}" for ${confirming.plant_name} today and recalculates its next due date.`
+            ? duplicateExists
+              ? `You already logged "${confirming.reminder_type_name}" for ${confirming.plant_name} today. Mark it as done again anyway?`
+              : `This logs "${confirming.reminder_type_name}" for ${confirming.plant_name} today and recalculates its next due date.`
             : ""
         }
         confirmLabel="Mark as done"
-        pending={markDone.isPending}
+        pending={markDone.isPending || checkingDuplicate}
         onConfirm={() => confirming && markDone.mutate(confirming)}
-        onCancel={() => setConfirming(null)}
+        onCancel={closeConfirm}
       />
     </div>
   );

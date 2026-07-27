@@ -5,6 +5,7 @@ import { apiFetch, ApiError } from "../api/client";
 import type { OverridePeriod, ReminderRule, ReminderType } from "../api/types";
 import { useToast } from "./Toast";
 import OverridePeriodEditor from "./OverridePeriodEditor";
+import Spinner from "./Spinner";
 import { getIcon } from "../lib/icons";
 
 interface Props {
@@ -171,7 +172,7 @@ export default function ReminderRuleForm({ plantId, reminderTypes, existingRule,
         <div>
           {existingRule && (
             <button type="button" className="btn danger" onClick={() => remove.mutate()} disabled={remove.isPending}>
-              Delete rule
+              {remove.isPending && <Spinner size={14} />} Delete rule
             </button>
           )}
         </div>
@@ -187,7 +188,7 @@ export default function ReminderRuleForm({ plantId, reminderTypes, existingRule,
             </button>
           ) : (
             <button type="button" className="btn" onClick={() => save.mutate()} disabled={save.isPending}>
-              {existingRule ? "Save changes" : "Create rule"}
+              {save.isPending && <Spinner size={14} />} {existingRule ? "Save changes" : "Create rule"}
             </button>
           )}
         </div>

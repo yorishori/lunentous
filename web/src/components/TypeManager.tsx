@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Plus } from "lucide-react";
+import { Archive, ArchiveRestore, Pencil, Plus } from "lucide-react";
 import { apiFetch, ApiError } from "../api/client";
 import { useToast } from "./Toast";
 import SlideOver from "./SlideOver";
@@ -111,10 +111,12 @@ export default function TypeManager({ basePath, hasIcon, queryKey, noun }: Props
                 </button>
                 <button
                   type="button"
-                  className="btn secondary"
+                  className="btn icon-btn secondary icon-btn-archive"
                   onClick={() => archive.mutate({ id: row.id, action: row.archived ? "unarchive" : "archive" })}
+                  aria-label={row.archived ? `Unarchive ${row.name}` : `Archive ${row.name}`}
+                  title={row.archived ? "Unarchive" : "Archive"}
                 >
-                  {row.archived ? "Unarchive" : "Archive"}
+                  {row.archived ? <ArchiveRestore size={14} /> : <Archive size={14} />}
                 </button>
               </div>
             </div>

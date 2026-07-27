@@ -4,6 +4,7 @@ import { apiFetch, ApiError } from "../api/client";
 import { useToast } from "./Toast";
 import IconPicker from "./IconPicker";
 import ColorPicker from "./ColorPicker";
+import Spinner from "./Spinner";
 
 interface TypeRow {
   id: number;
@@ -70,7 +71,7 @@ export default function TypeForm({ basePath, hasIcon, queryKey, noun, existing, 
         disabled={!name.trim() || save.isPending}
         style={{ width: "100%" }}
       >
-        {existing ? "Save changes" : `Add ${noun.toLowerCase()}`}
+        {save.isPending && <Spinner size={14} />} {existing ? "Save changes" : `Add ${noun.toLowerCase()}`}
       </button>
     </div>
   );

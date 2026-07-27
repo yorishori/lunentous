@@ -4,6 +4,7 @@ import { Pencil, Trash2 } from "lucide-react";
 import { apiFetch, ApiError } from "../api/client";
 import type { ReminderType, TimelineEvent } from "../api/types";
 import { useToast } from "./Toast";
+import TypeBadge from "./TypeBadge";
 
 interface Props {
   plantId: number;
@@ -49,7 +50,7 @@ export default function TimelineFeed({ plantId, reminderTypes, onEdit }: Props) 
     onError: (err) => showToast((err as ApiError).message ?? "Failed to delete timeline entry", "error"),
   });
 
-  const typeName = (id: number | null) => reminderTypes.find((t) => t.id === id)?.name;
+  const typeById = (id: number | null) => reminderTypes.find((t) => t.id === id);
 
   return (
     <div>
@@ -90,7 +91,12 @@ export default function TimelineFeed({ plantId, reminderTypes, onEdit }: Props) 
               </button>
             </div>
           </div>
-          {event.reminder_type_id != null && <span className="badge ok">{typeName(event.reminder_type_id)}</span>}
+          {event.reminder_type_id != null && (
+            <TypeBadge
+              name={typeById(event.reminder_type_id)?.name ?? "Unknown"}
+              color={typeById(event.reminder_type_id)?.color}
+            />
+          )}
           {event.text && <p>{event.text}</p>}
           {event.photos.length > 0 && (
             <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginTop: "0.5rem" }}>

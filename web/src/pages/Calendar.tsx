@@ -9,6 +9,7 @@ import MultiSelect from "../components/MultiSelect";
 import Modal from "../components/Modal";
 import ConfirmDialog from "../components/ConfirmDialog";
 import TimelineEntryForm from "../components/TimelineEntryForm";
+import TypeBadge from "../components/TypeBadge";
 import { useToast } from "../components/Toast";
 
 function pad(n: number): string {
@@ -249,11 +250,15 @@ export default function Calendar() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "1rem" }}>
                 <div>
                   <strong>{selected.plantName}</strong> · {selected.event.event_date}
-                  {selected.event.reminder_type_id != null && (
-                    <span className="badge ok" style={{ marginLeft: "0.5rem" }}>
-                      {reminderTypesQuery.data?.find((t) => t.id === selected.event.reminder_type_id)?.name}
-                    </span>
-                  )}
+                  {selected.event.reminder_type_id != null &&
+                    (() => {
+                      const type = reminderTypesQuery.data?.find((t) => t.id === selected.event.reminder_type_id);
+                      return (
+                        <span style={{ marginLeft: "0.5rem", display: "inline-block" }}>
+                          <TypeBadge name={type?.name ?? "Unknown"} color={type?.color} />
+                        </span>
+                      );
+                    })()}
                 </div>
                 <div style={{ display: "flex", gap: "0.4rem", flexShrink: 0 }}>
                   <button

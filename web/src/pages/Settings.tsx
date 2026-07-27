@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, ApiError, getToken } from "../api/client";
 import type { ApiKey } from "../api/types";
 import { useToast } from "../components/Toast";
+import Spinner from "../components/Spinner";
 
 export default function Settings() {
   const queryClient = useQueryClient();
@@ -61,7 +62,7 @@ export default function Settings() {
         <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
           <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Label (e.g. android-phone)" />
           <button type="button" className="btn" onClick={() => create.mutate()} disabled={create.isPending}>
-            Create key
+            {create.isPending && <Spinner size={14} />} Create key
           </button>
         </div>
         {create.isError && <p style={{ color: "var(--overdue)" }}>{(create.error as ApiError).message}</p>}

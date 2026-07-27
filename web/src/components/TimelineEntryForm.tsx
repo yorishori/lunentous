@@ -4,6 +4,9 @@ import { X } from "lucide-react";
 import { apiFetch, ApiError } from "../api/client";
 import type { Photo, Plant, ReminderType, TimelineEvent } from "../api/types";
 import { useToast } from "./Toast";
+import ConfirmDialog from "./ConfirmDialog";
+import Spinner from "./Spinner";
+import { hasDuplicateEntry } from "../lib/duplicateCheck";
 
 interface Props {
   /** Fixed plant context (plant detail page). Mutually exclusive with `plants`. */
@@ -38,6 +41,8 @@ export default function TimelineEntryForm({
   const [text, setText] = useState(existingEvent?.text ?? "");
   const [files, setFiles] = useState<FileList | null>(null);
   const [existingPhotos, setExistingPhotos] = useState<Photo[]>(existingEvent?.photos ?? []);
+  const [duplicateWarning, setDuplicateWarning] = useState(false);
+  const [checkingDuplicate, setCheckingDuplicate] = useState(false);
 
   function invalidate(forPlantId: number) {
     queryClient.invalidateQueries({ queryKey: ["timeline", forPlantId] });
@@ -95,8 +100,19 @@ export default function TimelineEntryForm({
     onError: (err) => showToast((err as ApiError).message ?? "Failed to remove photo", "error"),
   });
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (!existingEvent && reminderTypeId) {
+      setCheckingDuplicate(true);
+      const duplicate = await hasDuplicateEntry(selectedPlantId, Number(reminderTypeId), eventDate).catch(
+        () => false
+      );
+      setCheckingDuplicate(false);
+      if (duplicate) {
+        setDuplicateWarning(true);
+        return;
+      }
+    }
     save.mutate();
   }
 
@@ -165,9 +181,27 @@ export default function TimelineEntryForm({
         <input type="file" accept="image/*" multiple onChange={(e) => setFiles(e.target.files)} />
       </div>
       {save.isError && <p style={{ color: "var(--overdue)" }}>{(save.error as ApiError).message}</p>}
-      <button type="submit" className="btn" disabled={save.isPending} style={{ width: "100%" }}>
-        {existingEvent ? "Save changes" : "Add entry"}
+      <button
+        type="submit"
+        className="btn"
+        disabled={save.isPending || checkingDuplicate}
+        style={{ width: "100%" }}
+      >
+        {(save.isPending || checkingDuplicate) && <Spinner size={14} />} {existingEvent ? "Save changes" : "Add entry"}
       </button>
+
+      <ConfirmDialog
+        open={duplicateWarning}
+        title="Already logged today?"
+        message={`This plant already has a "${reminderTypes.find((t) => t.id === Number(reminderTypeId))?.name}" entry on ${eventDate}. Add another one anyway?`}
+        confirmLabel="Add anyway"
+        pending={save.isPending}
+        onConfirm={() => {
+          setDuplicateWarning(false);
+          save.mutate();
+        }}
+        onCancel={() => setDuplicateWarning(false)}
+      />
     </form>
   );
 }

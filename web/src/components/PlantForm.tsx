@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, ApiError } from "../api/client";
 import type { Plant, PlantDetail } from "../api/types";
 import { useToast } from "./Toast";
+import Spinner from "./Spinner";
 
 interface Props {
   plant?: PlantDetail;
@@ -81,7 +82,7 @@ export default function PlantForm({ plant, onDone }: Props) {
       </div>
       {save.isError && <p style={{ color: "var(--overdue)" }}>{(save.error as ApiError).message}</p>}
       <button type="submit" className="btn" disabled={save.isPending} style={{ width: "100%" }}>
-        {plant ? "Save changes" : "Create plant"}
+        {save.isPending && <Spinner size={14} />} {plant ? "Save changes" : "Create plant"}
       </button>
     </form>
   );

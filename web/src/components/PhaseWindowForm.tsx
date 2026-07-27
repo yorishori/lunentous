@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, ApiError } from "../api/client";
 import type { PhaseType, PhaseWindow } from "../api/types";
 import { useToast } from "./Toast";
+import Spinner from "./Spinner";
 
 interface Props {
   plantId: number;
@@ -103,12 +104,12 @@ export default function PhaseWindowForm({ plantId, phaseTypes, existingWindow, o
         <div>
           {existingWindow && (
             <button type="button" className="btn danger" onClick={() => remove.mutate()} disabled={remove.isPending}>
-              Delete
+              {remove.isPending && <Spinner size={14} />} Delete
             </button>
           )}
         </div>
         <button type="button" className="btn" onClick={() => save.mutate()} disabled={save.isPending}>
-          {existingWindow ? "Save changes" : "Add phase window"}
+          {save.isPending && <Spinner size={14} />} {existingWindow ? "Save changes" : "Add phase window"}
         </button>
       </div>
     </div>

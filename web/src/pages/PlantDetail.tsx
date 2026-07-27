@@ -19,6 +19,7 @@ import ReminderRuleForm from "../components/ReminderRuleForm";
 import PhaseWindowForm from "../components/PhaseWindowForm";
 import TimelineFeed from "../components/TimelineFeed";
 import TimelineEntryForm from "../components/TimelineEntryForm";
+import Skeleton from "../components/Skeleton";
 import { getIcon } from "../lib/icons";
 
 export default function PlantDetail() {
@@ -89,7 +90,18 @@ function ExistingPlant({ plantId }: { plantId: number }) {
 
   const closeSlideover = () => setSlideover({ type: "none" });
 
-  if (plantQuery.isLoading || !plantQuery.data) return <p>Loading…</p>;
+  if (plantQuery.isLoading || !plantQuery.data) {
+    return (
+      <div className="card plant-hero">
+        <Skeleton width={140} height={140} style={{ borderRadius: "var(--radius)" }} />
+        <div style={{ flex: 1 }}>
+          <Skeleton width="40%" height="1.6rem" style={{ marginBottom: "0.6rem" }} />
+          <Skeleton width="60%" height="1rem" style={{ marginBottom: "0.4rem" }} />
+          <Skeleton width="30%" height="1rem" />
+        </div>
+      </div>
+    );
+  }
   const plant = plantQuery.data;
 
   const usedReminderTypeIds = new Set((rulesQuery.data ?? []).map((r) => r.reminder_type_id));
@@ -136,11 +148,12 @@ function ExistingPlant({ plantId }: { plantId: number }) {
             </button>
             <button
               type="button"
-              className="btn secondary"
+              className="btn icon-btn secondary icon-btn-archive"
               onClick={() => archiveMutation.mutate(plant.archived ? "unarchive" : "archive")}
+              aria-label={plant.archived ? "Unarchive plant" : "Archive plant"}
+              title={plant.archived ? "Unarchive" : "Archive"}
             >
               {plant.archived ? <ArchiveRestore size={15} /> : <Archive size={15} />}
-              {plant.archived ? "Unarchive" : "Archive"}
             </button>
           </div>
         </div>

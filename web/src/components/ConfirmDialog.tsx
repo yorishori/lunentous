@@ -1,4 +1,5 @@
 import Modal from "./Modal";
+import Spinner from "./Spinner";
 
 interface Props {
   open: boolean;
@@ -29,7 +30,7 @@ export default function ConfirmDialog({
           Cancel
         </button>
         <button type="button" className={`btn${danger ? " danger" : ""}`} onClick={onConfirm} disabled={pending}>
-          {confirmLabel}
+          {pending && <Spinner size={14} />} {confirmLabel}
         </button>
       </div>
     </Modal>
