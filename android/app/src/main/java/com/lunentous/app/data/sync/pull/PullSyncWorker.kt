@@ -9,12 +9,12 @@ import kotlinx.coroutines.flow.first
 /**
  * Periodic (~4h, see SyncScheduler) background refresh so data stays
  * reasonably fresh even without the user opening the app -- a no-op when
- * no server is connected. Also the foundation the plan's on-device
- * reminder poll builds on in phase 6: the server's `notified`/
- * `due_before_or_on` query params on GET /reminder-states exist
- * specifically for that, per ARCHITECTURE.md's Android section, but
- * firing a notification from here is out of scope until phase 6 wires up
- * the notification channel/permission.
+ * no server is connected. Also doubles as the on-device reminder poll:
+ * once reminder_states is freshly pulled, ReminderNotifier checks it for
+ * anything due/overdue and not yet notified and posts local notifications
+ * for it -- the server's `notified` column and this worker's schedule are
+ * exactly what ARCHITECTURE.md's Android section describes that flow
+ * needing.
  */
 class PullSyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
@@ -32,6 +32,7 @@ class PullSyncWorker(context: Context, params: WorkerParameters) : CoroutineWork
                 container.phaseWindowRepository.pullSyncForPlant(plant.localId)
                 container.timelineRepository.pullSyncForPlant(plant.localId)
             }
+            container.reminderNotifier.checkAndNotify()
         }.fold(onSuccess = { Result.success() }, onFailure = { Result.retry() })
     }
 }

@@ -5,6 +5,12 @@
          trigger an outbox sync attempt as soon as connectivity returns. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+    <!-- Required to post the due/overdue reminder notifications
+         PullSyncWorker's periodic poll produces (see
+         data/notifications/ReminderNotifier.kt); requested at runtime from
+         MainActivity, not implicitly granted below API 33. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <!-- Camera capture (ui/camera/CameraCapture.kt) delegates to the
          system camera app via an implicit intent rather than an in-app
          CameraX preview, so this app itself never needs the CAMERA

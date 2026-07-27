@@ -1,9 +1,13 @@
 package com.lunentous.app
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -11,6 +15,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.core.content.ContextCompat
 import com.lunentous.app.data.sync.outbox.SyncScheduler
 import com.lunentous.app.di.AppContainer
 import com.lunentous.app.ui.nav.DeepLinkTarget
@@ -25,13 +30,27 @@ import com.lunentous.app.ui.theme.LunentousTheme
  * initial value does. */
 class MainActivity : ComponentActivity() {
     private var deepLinkTarget by mutableStateOf<DeepLinkTarget?>(null)
+    private val notificationPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val container = (application as LunentousApplication).container
         deepLinkTarget = parseDeepLink(intent)
+        requestNotificationPermissionIfNeeded()
         setContent {
             LunentousApp(container, deepLinkTarget, onDeepLinkConsumed = { deepLinkTarget = null })
+        }
+    }
+
+    /** Only meaningful on API 33+ (POST_NOTIFICATIONS didn't exist before
+     * that, and notifications just worked without asking) -- see
+     * ReminderNotifier, which silently skips posting until this is
+     * granted rather than blocking on it. */
+    private fun requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
     }
 

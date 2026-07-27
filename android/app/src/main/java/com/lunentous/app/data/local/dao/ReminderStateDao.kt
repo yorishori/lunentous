@@ -25,4 +25,13 @@ interface ReminderStateDao {
 
     @Query("DELETE FROM reminder_states WHERE serverId = :serverId")
     suspend fun deleteByServerId(serverId: Long)
+
+    /** Feeds the notification poll (see ReminderNotifier) -- restricted to
+     * source = 'SERVER' since a LOCAL_PROVISIONAL row's due date is only a
+     * guess and was never through the server's own notified bookkeeping. */
+    @Query("SELECT * FROM reminder_states WHERE dueDate IS NOT NULL AND dueDate <= :today AND notified = 0 AND source = 'SERVER'")
+    suspend fun getDueUnnotified(today: String): List<ReminderStateEntity>
+
+    @Query("UPDATE reminder_states SET notified = 1 WHERE localId = :localId")
+    suspend fun markNotifiedLocally(localId: Long)
 }

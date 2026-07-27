@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.lunentous.app.data.auth.SessionStore
 import com.lunentous.app.data.local.LunentousDatabase
 import com.lunentous.app.data.local.entity.OutboxEntityType
+import com.lunentous.app.data.notifications.ReminderNotifier
 import com.lunentous.app.data.remote.ConnectivityObserver
 import com.lunentous.app.data.remote.NetworkModule
 import com.lunentous.app.data.repository.AccountRepository
@@ -93,6 +94,13 @@ class AppContainer(context: Context) {
         provisionalDueDateCalculator,
     )
     val accountRepository = AccountRepository(api, sessionStore)
+
+    val reminderNotifier = ReminderNotifier(
+        context.applicationContext,
+        database.plantDao(),
+        database.reminderTypeDao(),
+        reminderStateRepository,
+    )
 
     val outboxProcessor = OutboxProcessor(
         outboxRepository,

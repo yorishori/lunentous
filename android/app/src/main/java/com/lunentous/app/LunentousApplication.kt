@@ -14,6 +14,7 @@ class LunentousApplication : Application() {
         // registers the regained-connectivity sync trigger -- nothing else
         // to wire up here.
         container = AppContainer(this)
+        container.reminderNotifier.ensureChannel()
         SyncScheduler.schedulePeriodicPullSync(this)
     }
 }

@@ -55,6 +55,10 @@ dependencies {
     // Encrypted local storage for the bearer token (Keystore-backed).
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
 
+    // NotificationCompat/NotificationManagerCompat for the reminder poll's
+    // local notifications (data/notifications/ReminderNotifier.kt).
+    implementation("androidx.core:core-ktx:1.13.1")
+
     // Local-first data layer (see the Android plan's "Data layer & offline
     // sync" section) -- Room is the source of truth for every screen read.
     implementation("androidx.room:room-runtime:2.6.1")
