@@ -40,7 +40,7 @@ class AppContainer(context: Context) {
     private val gson = NetworkModule.createGson()
     private val api = NetworkModule.createApi(sessionStore, gson)
 
-    val outboxRepository = OutboxRepository(database.outboxDao(), gson)
+    val outboxRepository = OutboxRepository(database.outboxDao(), gson, context.applicationContext)
 
     private val provisionalDueDateCalculator = ProvisionalDueDateCalculator(
         database.reminderRuleDao(),

@@ -1,6 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Needed for ConnectivityManager.registerNetworkCallback, used to
+         trigger an outbox sync attempt as soon as connectivity returns. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <!-- The server has no built-in TLS (README.md's Network exposure note);
          users reach it over plain HTTP via LAN/WireGuard/reverse proxy.

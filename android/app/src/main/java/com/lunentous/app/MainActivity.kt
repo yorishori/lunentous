@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import com.lunentous.app.data.sync.outbox.SyncScheduler
 import com.lunentous.app.di.AppContainer
 import com.lunentous.app.ui.nav.MainScaffold
 import com.lunentous.app.ui.theme.LunentousTheme
@@ -18,6 +19,15 @@ class MainActivity : ComponentActivity() {
         setContent {
             LunentousApp(container)
         }
+    }
+
+    /** App-foreground sync trigger (see SyncScheduler) -- a single-Activity
+     * app makes this a reasonable proxy for "the app came to the
+     * foreground" without pulling in a separate ProcessLifecycleOwner
+     * dependency just for this. */
+    override fun onResume() {
+        super.onResume()
+        SyncScheduler.triggerOutboxSync(this)
     }
 }
 

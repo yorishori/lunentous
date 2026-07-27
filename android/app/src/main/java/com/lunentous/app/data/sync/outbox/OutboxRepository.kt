@@ -1,5 +1,6 @@
 package com.lunentous.app.data.sync.outbox
 
+import android.content.Context
 import com.google.gson.Gson
 import com.lunentous.app.data.local.dao.OutboxDao
 import com.lunentous.app.data.local.entity.OutboxEntityType
@@ -16,8 +17,12 @@ import kotlinx.coroutines.flow.Flow
  * on an entity whose only pending op is a CREATE drops both with no
  * network call ever happening. Every write-capable repository calls this
  * instead of touching OutboxDao directly.
+ *
+ * Every successful enqueue schedules a sync attempt (see SyncScheduler) --
+ * the repositories that call this never have to remember to do so
+ * themselves.
  */
-class OutboxRepository(private val dao: OutboxDao, private val gson: Gson) {
+class OutboxRepository(private val dao: OutboxDao, private val gson: Gson, private val appContext: Context) {
     fun observePending(): Flow<List<OutboxOperationEntity>> = dao.observePending()
     fun observeFailed(): Flow<List<OutboxOperationEntity>> = dao.observeFailed()
     fun observePendingCount(): Flow<Int> = dao.observePendingCount()
@@ -34,6 +39,7 @@ class OutboxRepository(private val dao: OutboxDao, private val gson: Gson) {
                 payloadJson = gson.toJson(payload),
             ),
         )
+        SyncScheduler.triggerOutboxSync(appContext)
     }
 
     /** Squashes into a pending CREATE or UPDATE for the same entity if one
@@ -54,6 +60,7 @@ class OutboxRepository(private val dao: OutboxDao, private val gson: Gson) {
                 ),
             )
         }
+        SyncScheduler.triggerOutboxSync(appContext)
     }
 
     /** Returns true if the entity never made it to the server (only had a
@@ -76,6 +83,7 @@ class OutboxRepository(private val dao: OutboxDao, private val gson: Gson) {
                 payloadJson = "{}",
             ),
         )
+        SyncScheduler.triggerOutboxSync(appContext)
         return false
     }
 
@@ -88,6 +96,7 @@ class OutboxRepository(private val dao: OutboxDao, private val gson: Gson) {
                 payloadJson = "{}",
             ),
         )
+        SyncScheduler.triggerOutboxSync(appContext)
     }
 
     suspend fun markInFlight(id: Long) = dao.setStatus(id, OutboxStatus.IN_FLIGHT)
@@ -95,6 +104,9 @@ class OutboxRepository(private val dao: OutboxDao, private val gson: Gson) {
     suspend fun markFailed(id: Long, error: String?) = dao.markFailed(id, error)
     suspend fun remove(id: Long) = dao.deleteById(id)
 
-    suspend fun retry(id: Long) = dao.markPendingRetry(id)
+    suspend fun retry(id: Long) {
+        dao.markPendingRetry(id)
+        SyncScheduler.triggerOutboxSync(appContext)
+    }
     suspend fun discard(id: Long) = dao.deleteById(id)
 }
