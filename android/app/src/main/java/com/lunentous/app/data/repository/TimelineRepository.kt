@@ -1,16 +1,24 @@
 package com.lunentous.app.data.repository
 
+import com.google.gson.Gson
 import com.lunentous.app.data.auth.SessionStore
 import com.lunentous.app.data.local.dao.PhotoDao
 import com.lunentous.app.data.local.dao.PlantDao
 import com.lunentous.app.data.local.dao.ReminderTypeDao
 import com.lunentous.app.data.local.dao.TimelineEventDao
+import com.lunentous.app.data.local.entity.OutboxEntityType
+import com.lunentous.app.data.local.entity.OutboxOpType
+import com.lunentous.app.data.local.entity.OutboxOperationEntity
 import com.lunentous.app.data.local.entity.PhotoEntity
 import com.lunentous.app.data.local.entity.TimelineEventEntity
 import com.lunentous.app.data.remote.LunentousApi
 import com.lunentous.app.data.remote.dto.PhotoDto
 import com.lunentous.app.data.remote.dto.TimelineEventDto
 import com.lunentous.app.data.remote.dto.UpdateTimelineEventRequest
+import com.lunentous.app.data.sync.dates.ProvisionalDueDateCalculator
+import com.lunentous.app.data.sync.outbox.OutboxHandler
+import com.lunentous.app.data.sync.outbox.OutboxRepository
+import com.lunentous.app.data.sync.outbox.OutboxResult
 import java.io.File
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -22,10 +30,21 @@ import okhttp3.RequestBody.Companion.toRequestBody
 
 data class TimelineEventWithPhotos(val event: TimelineEventEntity, val photos: List<PhotoEntity>)
 
+private data class TimelinePayload(val eventDate: String, val reminderTypeLocalId: Long?, val text: String?)
+
 /**
  * Note: like reminder rules, an event tagged with a reminder type
- * (create/edit/delete) can trigger server-side recompute -- callers should
- * re-run ReminderStateRepository.pullSyncForPlant() afterward.
+ * (create/edit/delete) can trigger server-side recompute -- the local-
+ * provisional equivalent runs synchronously here via
+ * ProvisionalDueDateCalculator, and the ViewModel layer follows up the
+ * outbox op's eventual success with a targeted
+ * ReminderStateRepository.pullSyncForPlant().
+ *
+ * Photos aren't part of the outbox yet -- offline photo capture is the
+ * phase-6 camera work, which will need its own multipart-capable outbox
+ * op type. createEvent's photoFiles param still writes local rows so a
+ * future caller isn't blocked, but nothing currently calls it with files,
+ * and the CREATE/UPDATE outbox payload never carries them.
  *
  * plantDao/reminderTypeDao are held only to resolve local IDs to server
  * IDs for outgoing requests -- callers never look these up themselves.
@@ -37,7 +56,12 @@ class TimelineRepository(
     private val reminderTypeDao: ReminderTypeDao,
     private val api: LunentousApi,
     private val sessionStore: SessionStore,
-) {
+    private val outboxRepository: OutboxRepository,
+    private val gson: Gson,
+    private val provisionalCalculator: ProvisionalDueDateCalculator,
+) : OutboxHandler {
+    override val entityType = OutboxEntityType.TIMELINE_EVENT
+
     fun observeRecentByPlant(plantLocalId: Long, limit: Int = 60): Flow<List<TimelineEventWithPhotos>> =
         eventDao.observeRecentByPlant(plantLocalId, limit).map { events -> events.attachPhotos() }
 
@@ -58,32 +82,15 @@ class TimelineRepository(
         text: String?,
         photoFiles: List<File> = emptyList(),
     ): Result<TimelineEventWithPhotos> = runCatching {
-        val plantServerId = plantDao.getByLocalId(plantLocalId)?.serverId
-        val reminderTypeServerId = reminderTypeLocalId?.let { reminderTypeDao.getByLocalId(it)?.serverId }
-
-        if (sessionStore.hasSession() && plantServerId != null) {
-            val dto = api.createTimelineEvent(
-                plantServerId,
-                eventDate.toRequestBody("text/plain".toMediaType()),
-                reminderTypeServerId?.toString()?.toRequestBody("text/plain".toMediaType()),
-                text?.toRequestBody("text/plain".toMediaType()),
-                photoFiles.toMultipartParts(),
-            )
-            upsertFromDto(dto, plantLocalId, reminderTypeLocalId)
-        } else {
-            val event = TimelineEventEntity(
-                plantLocalId = plantLocalId,
-                reminderTypeLocalId = reminderTypeLocalId,
-                eventDate = eventDate,
-                text = text,
-            )
-            val eventLocalId = eventDao.upsert(event)
-            val photos = photoFiles.map { file ->
-                val photo = PhotoEntity(plantLocalId = plantLocalId, timelineEventLocalId = eventLocalId, localFileUri = file.absolutePath)
-                photo.copy(localId = photoDao.upsert(photo))
-            }
-            TimelineEventWithPhotos(event.copy(localId = eventLocalId), photos)
+        val event = TimelineEventEntity(plantLocalId = plantLocalId, reminderTypeLocalId = reminderTypeLocalId, eventDate = eventDate, text = text, pendingSync = true)
+        val eventLocalId = eventDao.upsert(event)
+        val photos = photoFiles.map { file ->
+            val photo = PhotoEntity(plantLocalId = plantLocalId, timelineEventLocalId = eventLocalId, localFileUri = file.absolutePath)
+            photo.copy(localId = photoDao.upsert(photo))
         }
+        outboxRepository.enqueueCreate(entityType, eventLocalId, TimelinePayload(eventDate, reminderTypeLocalId, text))
+        if (reminderTypeLocalId != null) provisionalCalculator.recompute(plantLocalId, reminderTypeLocalId)
+        TimelineEventWithPhotos(event.copy(localId = eventLocalId), photos)
     }
 
     suspend fun updateEvent(
@@ -93,22 +100,17 @@ class TimelineRepository(
         text: String?,
     ): Result<TimelineEventWithPhotos> = runCatching {
         val existing = eventDao.getByLocalId(eventLocalId) ?: error("Timeline event $eventLocalId not found locally")
-        val reminderTypeServerId = reminderTypeLocalId?.let { reminderTypeDao.getByLocalId(it)?.serverId }
-        if (sessionStore.hasSession() && existing.serverId != null) {
-            val dto = api.updateTimelineEvent(existing.serverId, UpdateTimelineEventRequest(eventDate, reminderTypeServerId, text))
-            upsertFromDto(dto, existing.plantLocalId, reminderTypeLocalId, preserveLocalId = eventLocalId)
-        } else {
-            val updated = existing.copy(
-                eventDate = eventDate,
-                reminderTypeLocalId = reminderTypeLocalId,
-                text = text,
-                dirty = existing.serverId != null,
-            )
-            eventDao.upsert(updated)
-            TimelineEventWithPhotos(updated, photoDao.getByTimelineEvents(listOf(eventLocalId)))
-        }
+        val oldReminderTypeLocalId = existing.reminderTypeLocalId
+        val updated = existing.copy(eventDate = eventDate, reminderTypeLocalId = reminderTypeLocalId, text = text, dirty = existing.serverId != null, pendingSync = true)
+        eventDao.upsert(updated)
+        outboxRepository.enqueueUpdate(entityType, eventLocalId, TimelinePayload(eventDate, reminderTypeLocalId, text))
+        if (oldReminderTypeLocalId != null) provisionalCalculator.recompute(existing.plantLocalId, oldReminderTypeLocalId)
+        if (reminderTypeLocalId != null && reminderTypeLocalId != oldReminderTypeLocalId) provisionalCalculator.recompute(existing.plantLocalId, reminderTypeLocalId)
+        TimelineEventWithPhotos(updated, photoDao.getByTimelineEvents(listOf(eventLocalId)))
     }
 
+    /** Still network-passthrough -- see the class doc on why photos aren't
+     * queued through the outbox yet. */
     suspend fun appendPhotos(eventLocalId: Long, photoFiles: List<File>): Result<TimelineEventWithPhotos> = runCatching {
         val existing = eventDao.getByLocalId(eventLocalId) ?: error("Timeline event $eventLocalId not found locally")
         if (sessionStore.hasSession() && existing.serverId != null) {
@@ -125,13 +127,22 @@ class TimelineRepository(
 
     suspend fun deleteEvent(eventLocalId: Long): Result<Unit> = runCatching {
         val existing = eventDao.getByLocalId(eventLocalId) ?: return@runCatching
-        if (sessionStore.hasSession() && existing.serverId != null) {
-            api.deleteTimelineEvent(existing.serverId)
+        val localOnly = outboxRepository.enqueueDelete(entityType, eventLocalId)
+        if (localOnly) {
+            photoDao.deleteByTimelineEvent(eventLocalId)
+            eventDao.deleteByLocalId(eventLocalId)
+        } else {
+            // Tombstone rather than hard-delete -- OutboxProcessor still
+            // needs this row's serverId when the DELETE op actually runs.
+            // Its photos stop showing immediately too, since attachPhotos
+            // only ever runs against already deleted=0-filtered events.
+            eventDao.upsert(existing.copy(deleted = true, pendingSync = true))
         }
-        photoDao.deleteByTimelineEvent(eventLocalId)
-        eventDao.deleteByLocalId(eventLocalId)
+        existing.reminderTypeLocalId?.let { provisionalCalculator.recompute(existing.plantLocalId, it) }
     }
 
+    /** Still network-passthrough -- see the class doc on why photos aren't
+     * queued through the outbox yet. */
     suspend fun deletePhoto(photoLocalId: Long, photoServerId: Long?): Result<Unit> = runCatching {
         if (sessionStore.hasSession() && photoServerId != null) {
             api.deletePhoto(photoServerId)
@@ -141,7 +152,8 @@ class TimelineRepository(
 
     /** Range-based, never pruned -- unlike the other entities' full-list
      * pull sync, timeline history is unbounded, so this only ever adds to
-     * the local cache (per the plan's Pull sync design). */
+     * the local cache (per the plan's Pull sync design). Skips rows with
+     * unpushed local edits -- see PlantRepository.pullSync for why. */
     suspend fun pullSyncForPlant(plantLocalId: Long, limit: Int = 60) {
         if (!sessionStore.hasSession()) return
         val plantServerId = plantDao.getByLocalId(plantLocalId)?.serverId ?: return
@@ -152,7 +164,46 @@ class TimelineRepository(
         val remote = api.getTimeline(plantServerId, limit = limit)
         remote.forEach { dto ->
             val reminderTypeLocalId = dto.reminderTypeId?.let { reminderTypeLocalIdByServerId[it] }
-            upsertFromDto(dto, plantLocalId, reminderTypeLocalId)
+            if (eventDao.getByServerId(dto.id)?.dirty != true) upsertFromDto(dto, plantLocalId, reminderTypeLocalId)
+        }
+    }
+
+    override suspend fun process(op: OutboxOperationEntity): OutboxResult {
+        val event = eventDao.getByLocalId(op.entityLocalId) ?: return OutboxResult.Success // already gone locally, nothing to do
+        return when (op.opType) {
+            OutboxOpType.CREATE -> {
+                val payload = gson.fromJson(op.payloadJson, TimelinePayload::class.java)
+                val plantServerId = plantDao.getByLocalId(event.plantLocalId)?.serverId ?: return OutboxResult.CascadeFailed
+                val reminderTypeServerId = payload.reminderTypeLocalId?.let { localId ->
+                    reminderTypeDao.getByLocalId(localId)?.serverId ?: return OutboxResult.CascadeFailed
+                }
+                val dto = api.createTimelineEvent(
+                    plantServerId,
+                    payload.eventDate.toRequestBody("text/plain".toMediaType()),
+                    reminderTypeServerId?.toString()?.toRequestBody("text/plain".toMediaType()),
+                    payload.text?.toRequestBody("text/plain".toMediaType()),
+                    emptyList(),
+                )
+                upsertFromDto(dto, event.plantLocalId, payload.reminderTypeLocalId, preserveLocalId = op.entityLocalId)
+                OutboxResult.Success
+            }
+            OutboxOpType.UPDATE -> {
+                val serverId = event.serverId ?: return OutboxResult.CascadeFailed
+                val payload = gson.fromJson(op.payloadJson, TimelinePayload::class.java)
+                val reminderTypeServerId = payload.reminderTypeLocalId?.let { localId ->
+                    reminderTypeDao.getByLocalId(localId)?.serverId ?: return OutboxResult.CascadeFailed
+                }
+                val dto = api.updateTimelineEvent(serverId, UpdateTimelineEventRequest(payload.eventDate, reminderTypeServerId, payload.text))
+                upsertFromDto(dto, event.plantLocalId, payload.reminderTypeLocalId, preserveLocalId = op.entityLocalId)
+                OutboxResult.Success
+            }
+            OutboxOpType.DELETE -> {
+                event.serverId?.let { api.deleteTimelineEvent(it) }
+                photoDao.deleteByTimelineEvent(op.entityLocalId)
+                eventDao.deleteByLocalId(op.entityLocalId)
+                OutboxResult.Success
+            }
+            else -> error("Timeline events only support CREATE/UPDATE/DELETE")
         }
     }
 

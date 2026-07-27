@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import com.lunentous.app.data.auth.SessionStore
 import com.lunentous.app.data.local.LunentousDatabase
+import com.lunentous.app.data.local.entity.OutboxEntityType
 import com.lunentous.app.data.remote.NetworkModule
 import com.lunentous.app.data.repository.AccountRepository
 import com.lunentous.app.data.repository.PhaseTypeRepository
@@ -14,6 +15,7 @@ import com.lunentous.app.data.repository.ReminderStateRepository
 import com.lunentous.app.data.repository.ReminderTypeRepository
 import com.lunentous.app.data.repository.TimelineRepository
 import com.lunentous.app.data.sync.dates.ProvisionalDueDateCalculator
+import com.lunentous.app.data.sync.outbox.OutboxProcessor
 import com.lunentous.app.data.sync.outbox.OutboxRepository
 
 /**
@@ -84,6 +86,22 @@ class AppContainer(context: Context) {
         database.reminderTypeDao(),
         api,
         sessionStore,
+        outboxRepository,
+        gson,
+        provisionalDueDateCalculator,
     )
     val accountRepository = AccountRepository(api, sessionStore)
+
+    val outboxProcessor = OutboxProcessor(
+        outboxRepository,
+        mapOf(
+            OutboxEntityType.PLANT to plantRepository,
+            OutboxEntityType.REMINDER_TYPE to reminderTypeRepository,
+            OutboxEntityType.PHASE_TYPE to phaseTypeRepository,
+            OutboxEntityType.REMINDER_RULE to reminderRuleRepository,
+            OutboxEntityType.PHASE_WINDOW to phaseWindowRepository,
+            OutboxEntityType.TIMELINE_EVENT to timelineRepository,
+        ),
+        sessionStore,
+    )
 }
