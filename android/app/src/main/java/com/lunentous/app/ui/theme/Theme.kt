@@ -132,6 +132,15 @@ fun LunentousTheme(themeVariant: ThemeVariant = ThemeVariant.SYSTEM, content: @C
     // purple/teal. Containers reuse surfaceHover as a neutral base with the
     // relevant accent hue as their "on" color, rather than inventing new
     // hardcoded tones beyond LunentousColors' existing set.
+    //
+    // surfaceContainerLow specifically matters: Card()'s default
+    // containerColor reads it, and it was previously set equal to
+    // `background`, making every Card render pixel-identical to the page
+    // background -- invisible in Latte, where bg/surface/surfaceHover are
+    // already close in lightness (unlike Mocha, where the dark palette's
+    // wider absolute gaps mostly hid the same bug). It must be `surface`,
+    // never `bg`, so cards stay visually distinct from the page underneath
+    // them in both themes.
     val materialScheme = if (dark) {
         darkColorScheme(
             primary = colors.accent, onPrimary = colors.accentText,
@@ -146,7 +155,11 @@ fun LunentousTheme(themeVariant: ThemeVariant = ThemeVariant.SYSTEM, content: @C
             outline = colors.border, outlineVariant = colors.border,
             error = colors.overdue, onError = colors.accentText,
             errorContainer = colors.surfaceHover, onErrorContainer = colors.overdue,
-            surfaceContainer = colors.surface, surfaceContainerLow = colors.bg, surfaceContainerHigh = colors.surfaceHover,
+            surfaceContainerLowest = colors.bg,
+            surfaceContainerLow = colors.surface,
+            surfaceContainer = colors.surface,
+            surfaceContainerHigh = colors.surfaceHover,
+            surfaceContainerHighest = colors.surfaceHover,
         )
     } else {
         lightColorScheme(
@@ -162,7 +175,11 @@ fun LunentousTheme(themeVariant: ThemeVariant = ThemeVariant.SYSTEM, content: @C
             outline = colors.border, outlineVariant = colors.border,
             error = colors.overdue, onError = colors.accentText,
             errorContainer = colors.surfaceHover, onErrorContainer = colors.overdue,
-            surfaceContainer = colors.surface, surfaceContainerLow = colors.bg, surfaceContainerHigh = colors.surfaceHover,
+            surfaceContainerLowest = colors.bg,
+            surfaceContainerLow = colors.surface,
+            surfaceContainer = colors.surface,
+            surfaceContainerHigh = colors.surfaceHover,
+            surfaceContainerHighest = colors.surfaceHover,
         )
     }
 

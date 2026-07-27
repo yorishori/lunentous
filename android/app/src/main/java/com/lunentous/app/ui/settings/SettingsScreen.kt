@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -71,7 +71,7 @@ fun SettingsScreen(container: AppContainer) {
     ) {
         Text("Settings", style = MaterialTheme.typography.headlineSmall)
 
-        Card(shape = MaterialTheme.shapes.medium) {
+        OutlinedCard(shape = MaterialTheme.shapes.medium) {
             Column(
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -81,7 +81,7 @@ fun SettingsScreen(container: AppContainer) {
             }
         }
 
-        Card(shape = MaterialTheme.shapes.medium) {
+        OutlinedCard(shape = MaterialTheme.shapes.medium) {
             Column(
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -114,14 +114,14 @@ fun SettingsScreen(container: AppContainer) {
         }
 
         if (connected) {
-            Card(shape = MaterialTheme.shapes.medium) {
+            OutlinedCard(shape = MaterialTheme.shapes.medium) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("API keys", style = MaterialTheme.typography.titleMedium)
                     ApiKeysSection(viewModel)
                 }
             }
 
-            Card(shape = MaterialTheme.shapes.medium) {
+            OutlinedCard(shape = MaterialTheme.shapes.medium) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("Backup", style = MaterialTheme.typography.titleMedium)
                     BackupSection(container)
@@ -214,7 +214,7 @@ private fun ConnectForm(isConnecting: Boolean, error: String?, onConnect: (serve
 @Composable
 private fun DuplicatePlantsCard(groups: List<List<PlantEntity>>, onArchive: (PlantEntity) -> Unit, onDismiss: () -> Unit) {
     val colors = LunentousExtendedTheme.colors
-    Card(shape = MaterialTheme.shapes.medium) {
+    OutlinedCard(shape = MaterialTheme.shapes.medium) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Possible duplicate plants", style = MaterialTheme.typography.titleMedium)
             Text(
@@ -267,7 +267,7 @@ private fun ApiKeysSection(viewModel: SettingsViewModel) {
     viewModel.keysError?.let { Text(it, color = colors.overdue, style = MaterialTheme.typography.bodySmall) }
 
     viewModel.createdToken?.let { token ->
-        Card(shape = MaterialTheme.shapes.small) {
+        OutlinedCard(shape = MaterialTheme.shapes.small) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("New key created — copy it now, it won't be shown again:", style = MaterialTheme.typography.bodySmall)
                 Text(token, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)

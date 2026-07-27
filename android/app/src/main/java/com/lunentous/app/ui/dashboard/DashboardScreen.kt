@@ -25,7 +25,7 @@ import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Spa
 import androidx.compose.material.icons.automirrored.filled.PlaylistAddCheck
 import androidx.compose.material.icons.filled.WarningAmber
-import androidx.compose.material3.Card
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -192,7 +192,7 @@ private fun TaskRow(task: ReminderTask, onMarkDone: () -> Unit, onClick: () -> U
 
     val typeColor = task.reminderTypeColor?.let { runCatching { Color(android.graphics.Color.parseColor(it)) }.getOrNull() } ?: colors.accent
 
-    Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+    OutlinedCard(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -220,7 +220,7 @@ private fun TaskRow(task: ReminderTask, onMarkDone: () -> Unit, onClick: () -> U
 @Composable
 private fun PlantGridCard(data: PlantCardData, photoUrl: String?, onClick: () -> Unit, onMarkDone: () -> Unit) {
     val colors = LunentousExtendedTheme.colors
-    Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+    OutlinedCard(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
         Column {
             PlantCardImage(photoUrl = photoUrl, modifier = Modifier.fillMaxWidth().height(120.dp))
             Column(modifier = Modifier.padding(12.dp)) {

@@ -22,7 +22,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Card
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -130,7 +130,7 @@ fun PlantDetailScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp),
         ) {
-            Card(modifier = Modifier.fillMaxWidth()) {
+            OutlinedCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                         PlantAvatar(photoUrl = buildPhotoUrl(baseUrl, current.avatarPhotoPath), size = 84.dp)
@@ -315,7 +315,7 @@ private fun PhaseWindowsSection(
                 val type = typesById[window.phaseTypeLocalId]
                 val typeColor = type?.color?.let { runCatching { Color(android.graphics.Color.parseColor(it)) }.getOrNull() } ?: colors.accent
 
-                Card(onClick = { onEdit(window) }, modifier = Modifier.fillMaxWidth()) {
+                OutlinedCard(onClick = { onEdit(window) }, modifier = Modifier.fillMaxWidth()) {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -380,7 +380,7 @@ private fun ReminderRulesSection(
                     }
                 }
 
-                Card(onClick = { onEdit(ruleWithPeriods) }, modifier = Modifier.fillMaxWidth()) {
+                OutlinedCard(onClick = { onEdit(ruleWithPeriods) }, modifier = Modifier.fillMaxWidth()) {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -437,7 +437,7 @@ private fun TimelineSection(
                 val event = eventWithPhotos.event
                 val type = event.reminderTypeLocalId?.let { typesById[it] }
 
-                Card(onClick = { onEdit(eventWithPhotos) }, modifier = Modifier.fillMaxWidth()) {
+                OutlinedCard(onClick = { onEdit(eventWithPhotos) }, modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
