@@ -1,4 +1,4 @@
-import type { RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { CalendarRange } from "lucide-react";
 import { getIcon } from "../lib/icons";
 import type { Plant } from "../api/types";
@@ -41,6 +41,51 @@ export default function CareTimelineGrid({ weeks, activities, plants, ranges, ev
   const rangesByPlant = groupBy(ranges, (r) => r.plantId);
   const eventsByPlant = groupBy(events, (e) => e.plantId);
   const activitiesById = new Map(activities.map((a) => [a.id, a]));
+  const [isDragging, setIsDragging] = useState(false);
+  const dragRef = useRef<{ startX: number; startScrollLeft: number } | null>(null);
+  const draggedPastThresholdRef = useRef(false);
+
+  // Click-and-drag panning instead of a visible scrollbar (see
+  // .care-timeline-scroll in index.css, which hides the native one).
+  // Listens on window rather than just this element so a drag doesn't
+  // stop dead the moment the cursor leaves the grid mid-gesture.
+  useEffect(() => {
+    function handleMouseMove(e: MouseEvent) {
+      const drag = dragRef.current;
+      const container = scrollContainerRef.current;
+      if (!drag || !container) return;
+      const dx = e.clientX - drag.startX;
+      if (Math.abs(dx) > 3) draggedPastThresholdRef.current = true;
+      container.scrollLeft = drag.startScrollLeft - dx;
+    }
+    function handleMouseUp() {
+      dragRef.current = null;
+      setIsDragging(false);
+    }
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [scrollContainerRef]);
+
+  function handleMouseDown(e: React.MouseEvent) {
+    if (!scrollContainerRef.current) return;
+    dragRef.current = { startX: e.clientX, startScrollLeft: scrollContainerRef.current.scrollLeft };
+    draggedPastThresholdRef.current = false;
+    setIsDragging(true);
+  }
+
+  // A drag that moved past the threshold shouldn't also select whatever
+  // week-cell button the cursor happened to release over.
+  function handleClickCapture(e: React.MouseEvent) {
+    if (draggedPastThresholdRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      draggedPastThresholdRef.current = false;
+    }
+  }
 
   return (
     <div>
@@ -76,7 +121,13 @@ export default function CareTimelineGrid({ weeks, activities, plants, ranges, ev
           <div style={{ height: WEEK_TICK_HEIGHT }} />
         </div>
 
-        <div ref={scrollContainerRef} style={{ overflowX: "auto", flex: 1 }}>
+        <div
+          ref={scrollContainerRef}
+          className="care-timeline-scroll"
+          style={{ overflowX: "auto", flex: 1, cursor: isDragging ? "grabbing" : "grab" }}
+          onMouseDown={handleMouseDown}
+          onClickCapture={handleClickCapture}
+        >
           <div style={{ width: `${weeks.length * WEEK_WIDTH_REM}rem`, display: "flex", flexDirection: "column", gap: `${ROW_GAP_REM}rem`, position: "relative" }}>
             {/* One continuous rounded highlight for the whole selected
                 column, instead of each row drawing its own separate box --
@@ -161,16 +212,20 @@ export default function CareTimelineGrid({ weeks, activities, plants, ranges, ev
               );
             })}
 
-            {/* Week-tick row -- a thin accent tick for today, otherwise every 4th week's number */}
+            {/* Week-tick row -- a thin accent tick for today; the
+                selected week (and only the selected week) shows its
+                number, since scattering every 4th week's raw index along
+                the row read as arbitrary, unlabeled clutter. */}
             <div style={{ display: "flex", height: WEEK_TICK_HEIGHT }}>
               {weeks.map((week) => {
                 const isToday = todayIso >= week.startDate && todayIso < addDays(week.startDate, 7);
+                const isSelected = week.index === selectedWeek;
                 return (
-                  <WeekCell key={week.index} week={week} selected={week.index === selectedWeek} onSelect={onSelectWeek} height={WEEK_TICK_HEIGHT}>
+                  <WeekCell key={week.index} week={week} selected={isSelected} onSelect={onSelectWeek} height={WEEK_TICK_HEIGHT}>
                     {isToday ? (
                       <div style={{ width: "2px", height: WEEK_TICK_HEIGHT, background: "var(--accent)" }} />
-                    ) : week.index % 4 === 0 ? (
-                      <span style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>{week.index + 1}</span>
+                    ) : isSelected ? (
+                      <span style={{ fontSize: "0.7rem", color: "var(--accent)", fontWeight: 600 }}>Wk {week.index + 1}</span>
                     ) : null}
                   </WeekCell>
                 );

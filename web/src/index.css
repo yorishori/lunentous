@@ -1130,8 +1130,15 @@ input[type="radio"] {
   font: inherit;
 }
 
-.care-timeline-cell:hover {
-  background: var(--surface-hover);
+/* Draggable-to-scroll (see CareTimelineGrid.tsx's mouse handlers) reads
+   better without a visible scrollbar competing for attention. */
+.care-timeline-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.care-timeline-scroll::-webkit-scrollbar {
+  display: none;
 }
 
 /* One continuous highlight spanning the whole selected column (month
