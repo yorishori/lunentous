@@ -71,5 +71,9 @@ dependencies {
     // declared now, unused until that feature is built.
     implementation("androidx.work:work-runtime-ktx:2.9.1")
 
+    // Async image loading for plant avatars / timeline photos, both
+    // server-hosted (http URL) and locally captured (file URI).
+    implementation("io.coil-kt:coil-compose:2.7.0")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

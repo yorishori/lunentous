@@ -15,6 +15,11 @@ class ReminderTypeRepository(
 ) {
     fun observeByArchived(archived: Boolean): Flow<List<ReminderTypeEntity>> = dao.observeByArchived(archived)
 
+    /** Archived types can still be referenced by existing reminder rules,
+     * so lookups that need name/icon/color for display (e.g. the dashboard
+     * task list) should join against all types, not just active ones. */
+    fun observeAll(): Flow<List<ReminderTypeEntity>> = dao.observeAll()
+
     suspend fun create(name: String, icon: String?, color: String?): Result<ReminderTypeEntity> = runCatching {
         if (sessionStore.hasSession()) {
             upsertFromDto(api.createReminderType(CreateReminderTypeRequest(name, icon, color)))

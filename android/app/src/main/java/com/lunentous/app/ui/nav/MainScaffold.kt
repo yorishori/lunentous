@@ -25,6 +25,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.lunentous.app.di.AppContainer
+import com.lunentous.app.ui.dashboard.DashboardScreen
 import com.lunentous.app.ui.settings.SettingsScreen
 
 /**
@@ -74,13 +75,22 @@ fun MainScaffold(container: AppContainer) {
             ) {
                 NavDestination.entries.forEach { destination ->
                     composable(destination.route) {
-                        if (destination == NavDestination.Settings) {
-                            SettingsScreen(sessionStore = container.sessionStore)
-                        } else {
-                            // Real screens land in later build phases -- see
-                            // the Android plan's Build ordering. This proves
-                            // the nav shell works end to end in the meantime.
-                            PlaceholderScreen(destination.label)
+                        when (destination) {
+                            NavDestination.Settings -> SettingsScreen(sessionStore = container.sessionStore)
+                            NavDestination.Dashboard -> DashboardScreen(
+                                container = container,
+                                // Plant detail route + create/edit bottom sheet land in
+                                // the next build step (nav wiring, Android plan's Build
+                                // ordering) -- no-ops here in the meantime.
+                                onPlantClick = {},
+                                onAddPlant = {},
+                            )
+                            else -> {
+                                // Real screens land in later build phases -- see
+                                // the Android plan's Build ordering. This proves
+                                // the nav shell works end to end in the meantime.
+                                PlaceholderScreen(destination.label)
+                            }
                         }
                     }
                 }

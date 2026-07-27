@@ -22,6 +22,10 @@ class PlantRepository(
 ) {
     fun observeByArchived(archived: Boolean): Flow<List<PlantEntity>> = dao.observeByArchived(archived)
 
+    /** For joins that need every plant's name regardless of archived state
+     * (e.g. the dashboard's task list), not just the grid's active plants. */
+    fun observeAll(): Flow<List<PlantEntity>> = dao.observeAll()
+
     fun observeByLocalId(localId: Long): Flow<PlantEntity?> = dao.observeByLocalId(localId)
 
     suspend fun createPlant(
