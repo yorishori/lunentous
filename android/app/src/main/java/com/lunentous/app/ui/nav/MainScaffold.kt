@@ -36,6 +36,7 @@ import com.lunentous.app.ui.dashboard.DashboardScreen
 import com.lunentous.app.ui.plant.PlantDetailScreen
 import com.lunentous.app.ui.plant.PlantFormSheet
 import com.lunentous.app.ui.plant.PlantFormTarget
+import com.lunentous.app.ui.plant.PlantGalleryScreen
 import com.lunentous.app.ui.settings.SettingsScreen
 import com.lunentous.app.ui.photos.importImageToLocalFile
 import com.lunentous.app.ui.sync.SyncIssuesScreen
@@ -49,6 +50,8 @@ import kotlinx.coroutines.withContext
 private const val PLANT_LOCAL_ID_ARG = "plantLocalId"
 private const val PLANT_DETAIL_ROUTE = "plant_detail/{$PLANT_LOCAL_ID_ARG}"
 private fun plantDetailRoute(plantLocalId: Long) = "plant_detail/$plantLocalId"
+private const val PLANT_GALLERY_ROUTE = "plant_gallery/{$PLANT_LOCAL_ID_ARG}"
+private fun plantGalleryRoute(plantLocalId: Long) = "plant_gallery/$plantLocalId"
 private const val SYNC_ISSUES_ROUTE = "sync_issues"
 
 /**
@@ -171,6 +174,19 @@ fun MainScaffold(container: AppContainer, deepLinkTarget: DeepLinkTarget? = null
                         plantLocalId = plantLocalId,
                         onBack = { navController.popBackStack() },
                         onEdit = { plant -> plantFormTarget = PlantFormTarget.Edit(plant) },
+                        onGallery = { navController.navigate(plantGalleryRoute(plantLocalId)) },
+                    )
+                }
+
+                composable(
+                    route = PLANT_GALLERY_ROUTE,
+                    arguments = listOf(navArgument(PLANT_LOCAL_ID_ARG) { type = NavType.LongType }),
+                ) { backStackEntry ->
+                    val plantLocalId = backStackEntry.arguments?.getLong(PLANT_LOCAL_ID_ARG) ?: return@composable
+                    PlantGalleryScreen(
+                        container = container,
+                        plantLocalId = plantLocalId,
+                        onBack = { navController.popBackStack() },
                     )
                 }
 

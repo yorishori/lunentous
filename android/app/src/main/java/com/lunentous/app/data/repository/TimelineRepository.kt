@@ -71,6 +71,10 @@ class TimelineRepository(
     fun observeRecentByPlant(plantLocalId: Long, limit: Int = 60): Flow<List<TimelineEventWithPhotos>> =
         eventDao.observeRecentByPlant(plantLocalId, limit).map { events -> events.attachPhotos() }
 
+    /** All photos ever logged for the plant, across every timeline event --
+     * feeds the plant photo gallery screen. */
+    fun observePhotosForPlant(plantLocalId: Long): Flow<List<PhotoEntity>> = photoDao.observeByPlant(plantLocalId)
+
     fun observeRecentByPlantAndType(plantLocalId: Long, reminderTypeLocalId: Long, limit: Int = 60): Flow<List<TimelineEventWithPhotos>> =
         eventDao.observeRecentByPlantAndType(plantLocalId, reminderTypeLocalId, limit).map { events -> events.attachPhotos() }
 

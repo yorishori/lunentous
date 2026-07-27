@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Card
@@ -85,6 +86,7 @@ fun PlantDetailScreen(
     plantLocalId: Long,
     onBack: () -> Unit,
     onEdit: (PlantEntity) -> Unit,
+    onGallery: () -> Unit,
 ) {
     val viewModel: PlantDetailViewModel = viewModel(
         key = "plant_detail_$plantLocalId",
@@ -173,6 +175,10 @@ fun PlantDetailScreen(
                                 Icon(Icons.Filled.Archive, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Text(" Archive", modifier = Modifier.padding(start = 4.dp))
                             }
+                        }
+                        OutlinedButton(onClick = onGallery) {
+                            Icon(Icons.Filled.PhotoLibrary, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Text(" Gallery", modifier = Modifier.padding(start = 4.dp))
                         }
                     }
                 }

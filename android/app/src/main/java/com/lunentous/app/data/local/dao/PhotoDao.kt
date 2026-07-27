@@ -11,6 +11,12 @@ interface PhotoDao {
     @Query("SELECT * FROM photos WHERE timelineEventLocalId = :eventLocalId")
     fun observeByTimelineEvent(eventLocalId: Long): Flow<List<PhotoEntity>>
 
+    /** Feeds the plant photo gallery (see ui/plant/PlantGalleryScreen.kt) --
+     * every photo ever logged for the plant, across all its timeline
+     * events, newest first. */
+    @Query("SELECT * FROM photos WHERE plantLocalId = :plantLocalId ORDER BY createdAt DESC")
+    fun observeByPlant(plantLocalId: Long): Flow<List<PhotoEntity>>
+
     @Query("SELECT * FROM photos WHERE timelineEventLocalId IN (:eventLocalIds)")
     suspend fun getByTimelineEvents(eventLocalIds: List<Long>): List<PhotoEntity>
 
