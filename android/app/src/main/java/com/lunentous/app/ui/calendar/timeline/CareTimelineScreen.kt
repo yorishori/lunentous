@@ -1,5 +1,6 @@
 package com.lunentous.app.ui.calendar.timeline
 
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -20,9 +22,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
@@ -33,19 +38,22 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.lunentous.app.data.local.entity.PlantEntity
 import com.lunentous.app.di.AppContainer
 import com.lunentous.app.ui.plant.TimelineEntryFormSheet
 import com.lunentous.app.ui.theme.LunentousExtendedTheme
@@ -53,30 +61,31 @@ import java.io.File
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import kotlinx.coroutines.launch
 
 private val WEEK_WIDTH = 30.dp
 private val LABEL_WIDTH = 96.dp
-private val LANE_HEIGHT = 32.dp
+private val RANGE_STRIP_HEIGHT = 18.dp
+private val POINT_STRIP_HEIGHT = 16.dp
+private val PLANT_ROW_HEIGHT = RANGE_STRIP_HEIGHT + POINT_STRIP_HEIGHT + 4.dp
 private val MONTH_HEADER_HEIGHT = 22.dp
 private val WEEK_TICK_HEIGHT = 18.dp
+private const val SCROLL_PAGE_WEEKS = 4
 
 private data class EntryTarget(val initialPhoto: File? = null)
 
 /**
- * Multi-month plant care timeline: phase windows render as range pills (one
- * lane per phase type, merged across plants), reminder occurrences render
- * as point dots (one lane per reminder type). A single Row/Column layout
- * (no orientation branching) with one shared horizontalScroll state keeps
- * the month header, every lane, and the week-tick row moving in lockstep;
- * a sticky (non-scrolling) label column sits to their left.
- *
- * Deliberate simplification vs. the original spec: overlapping ranges from
- * different plants on the same activity lane are shown as one merged pill
- * (the union of active weeks) rather than stacked sub-bars -- the detail
- * panel below still enumerates every contributing plant for the selected
- * week, so nothing is actually lost, it just isn't drawn as parallel bars.
- * That tradeoff was chosen to keep row heights (and thus the sticky label
- * column's sync with the scrollable grid) trivially uniform.
+ * Multi-month plant care timeline: rows are plants, columns are weeks
+ * (grouped by month). Each plant's row shows its own phase-window range
+ * pills (top strip, up to 2 concurrent types stacked) and reminder point
+ * dots (bottom strip) together -- the legend above decodes which color/
+ * icon belongs to which activity type, since the row itself is now
+ * labeled by plant rather than activity. A single Row/Column layout (no
+ * orientation branching) with one shared horizontalScroll state keeps the
+ * month header, every plant row, and the week-tick row moving in
+ * lockstep; a sticky (non-scrolling) label column of plant names sits to
+ * their left, and arrow buttons page the shared scroll a few weeks at a
+ * time as an alternative to dragging.
  */
 @Composable
 fun CareTimelineScreen(
@@ -90,7 +99,10 @@ fun CareTimelineScreen(
     val uiState by viewModel.uiState.collectAsState()
     val colors = LunentousExtendedTheme.colors
     val scrollState = rememberScrollState()
+    val scope = rememberCoroutineScope()
+    val density = LocalDensity.current
     var entryTarget by remember { mutableStateOf<EntryTarget?>(null) }
+    val activitiesById = remember(uiState.activities) { uiState.activities.associateBy { it.id } }
 
     LaunchedEffect(sharedPhotoFile) {
         sharedPhotoFile?.let { file ->
@@ -114,14 +126,32 @@ fun CareTimelineScreen(
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
         } else {
             Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-                Text("Care timeline", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Care timeline", style = MaterialTheme.typography.headlineSmall)
+                    Row {
+                        val pagePx = with(density) { (WEEK_WIDTH * SCROLL_PAGE_WEEKS).roundToPx() }
+                        IconButton(onClick = { scope.launch { scrollState.animateScrollTo((scrollState.value - pagePx).coerceAtLeast(0)) } }) {
+                            Icon(Icons.Filled.ChevronLeft, contentDescription = "Scroll to earlier weeks")
+                        }
+                        IconButton(onClick = { scope.launch { scrollState.animateScrollTo((scrollState.value + pagePx).coerceAtMost(scrollState.maxValue)) } }) {
+                            Icon(Icons.Filled.ChevronRight, contentDescription = "Scroll to later weeks")
+                        }
+                    }
+                }
                 LegendRow(uiState.activities, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
 
-                Row(modifier = Modifier.weight(1f).padding(horizontal = 16.dp)) {
-                    LabelColumn(uiState.activities)
+                // No horizontal padding here -- this row is meant to use
+                // the full screen width, unlike the text/legend above it.
+                Row(modifier = Modifier.weight(1f)) {
+                    LabelColumn(uiState.allPlants)
                     TimelineGrid(
                         uiState = uiState,
                         scrollState = scrollState,
+                        activitiesById = activitiesById,
                         selectedWeek = viewModel.selectedWeek,
                         onSelectWeek = viewModel::selectWeek,
                         modifier = Modifier.weight(1f),
@@ -165,18 +195,18 @@ private fun LegendRow(activities: List<CareActivity>, modifier: Modifier = Modif
 }
 
 @Composable
-private fun LabelColumn(activities: List<CareActivity>) {
+private fun LabelColumn(plants: List<PlantEntity>) {
     val colors = LunentousExtendedTheme.colors
     Column(modifier = Modifier.width(LABEL_WIDTH)) {
         Box(Modifier.fillMaxWidth().size(width = LABEL_WIDTH, height = MONTH_HEADER_HEIGHT))
-        activities.forEach { activity ->
-            Box(Modifier.fillMaxWidth().size(width = LABEL_WIDTH, height = LANE_HEIGHT), contentAlignment = Alignment.CenterStart) {
+        plants.forEach { plant ->
+            Box(Modifier.fillMaxWidth().size(width = LABEL_WIDTH, height = PLANT_ROW_HEIGHT), contentAlignment = Alignment.CenterStart) {
                 Text(
-                    activity.label,
+                    plant.name,
                     style = MaterialTheme.typography.labelSmall,
                     color = colors.text,
                     maxLines = 1,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
@@ -187,7 +217,8 @@ private fun LabelColumn(activities: List<CareActivity>) {
 @Composable
 private fun TimelineGrid(
     uiState: CareTimelineUiState,
-    scrollState: androidx.compose.foundation.ScrollState,
+    scrollState: ScrollState,
+    activitiesById: Map<String, CareActivity>,
     selectedWeek: Int,
     onSelectWeek: (Int) -> Unit,
     modifier: Modifier = Modifier,
@@ -195,8 +226,8 @@ private fun TimelineGrid(
     val today = remember { LocalDate.now() }
     Column(modifier = modifier.horizontalScroll(scrollState)) {
         MonthHeaderRow(uiState.weeks, selectedWeek, onSelectWeek)
-        uiState.activities.forEach { activity ->
-            ActivityLane(activity, uiState, selectedWeek, onSelectWeek)
+        uiState.allPlants.forEach { plant ->
+            PlantLane(plant, uiState, activitiesById, selectedWeek, onSelectWeek)
         }
         WeekTickRow(uiState.weeks, selectedWeek, today, onSelectWeek)
     }
@@ -220,51 +251,69 @@ private fun MonthHeaderRow(weeks: List<WeekInfo>, selectedWeek: Int, onSelectWee
     }
 }
 
+/** One row per plant, combining that plant's own range activities (top
+ * strip, phase windows) and point activities (bottom strip, reminder
+ * occurrences) rather than one row per activity type -- the legend above
+ * the grid is what decodes each strip segment/dot's color back to an
+ * activity name, since the row label is now the plant. Capped at 2
+ * concurrent range types per week (stacked as two thinner segments) --
+ * a single plant having 3+ overlapping phase windows at once is not a
+ * case worth the extra layout complexity to handle exactly. */
 @Composable
-private fun ActivityLane(activity: CareActivity, uiState: CareTimelineUiState, selectedWeek: Int, onSelectWeek: (Int) -> Unit) {
-    val activeWeeks = remember(activity.id, uiState.ranges) {
-        uiState.ranges.filter { it.activityId == activity.id }.flatMap { it.startWeek..it.endWeek }.toSet()
-    }
-    val eventWeeks = remember(activity.id, uiState.events) {
-        uiState.events.filter { it.activityId == activity.id }.map { it.week }.toSet()
-    }
+private fun PlantLane(
+    plant: PlantEntity,
+    uiState: CareTimelineUiState,
+    activitiesById: Map<String, CareActivity>,
+    selectedWeek: Int,
+    onSelectWeek: (Int) -> Unit,
+) {
+    val plantRanges = remember(plant.localId, uiState.ranges) { uiState.ranges.filter { it.plantLocalId == plant.localId } }
+    val plantEvents = remember(plant.localId, uiState.events) { uiState.events.filter { it.plantLocalId == plant.localId } }
+    val rangeActivityIds = remember(plantRanges) { plantRanges.map { it.activityId }.distinct() }
 
     Row {
         uiState.weeks.forEach { week ->
-            val description = "${activity.label}, week of ${week.startDate}, " +
-                if (activity.kind == ActivityKind.RANGE) {
-                    if (week.index in activeWeeks) "active" else "not active"
-                } else {
-                    if (week.index in eventWeeks) "occurs this week" else "no occurrence"
-                }
+            val activeRangeIds = rangeActivityIds.filter { id -> plantRanges.any { it.activityId == id && week.index in it.startWeek..it.endWeek } }
+            val activeEventIds = plantEvents.filter { it.week == week.index }.map { it.activityId }.distinct()
+            val description = "${plant.name}, week of ${week.startDate}" +
+                if (activeRangeIds.isEmpty() && activeEventIds.isEmpty()) ", nothing scheduled" else ""
+
             Box(
                 modifier = Modifier
-                    .size(width = WEEK_WIDTH, height = LANE_HEIGHT)
+                    .size(width = WEEK_WIDTH, height = PLANT_ROW_HEIGHT)
                     .selectableCell(week.index == selectedWeek)
                     .clickable(onClickLabel = description) { onSelectWeek(week.index) },
-                contentAlignment = Alignment.Center,
             ) {
-                when (activity.kind) {
-                    ActivityKind.RANGE -> if (week.index in activeWeeks) {
-                        val roundStart = (week.index - 1) !in activeWeeks
-                        val roundEnd = (week.index + 1) !in activeWeeks
-                        val shape = RoundedCornerShape(
-                            topStart = if (roundStart) 8.dp else 0.dp,
-                            bottomStart = if (roundStart) 8.dp else 0.dp,
-                            topEnd = if (roundEnd) 8.dp else 0.dp,
-                            bottomEnd = if (roundEnd) 8.dp else 0.dp,
-                        )
-                        Box(
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = if (roundStart || roundEnd) 1.dp else 0.dp)
-                                .size(height = 16.dp, width = WEEK_WIDTH)
-                                .clip(shape)
-                                .background(activity.color.copy(alpha = 0.75f)),
-                        )
+                Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Column(Modifier.fillMaxWidth().height(RANGE_STRIP_HEIGHT)) {
+                        val shown = activeRangeIds.take(2)
+                        val subHeight = if (shown.size > 1) RANGE_STRIP_HEIGHT / 2 else RANGE_STRIP_HEIGHT
+                        shown.forEach { id ->
+                            val color = activitiesById[id]?.color ?: Color.Gray
+                            val ranges = plantRanges.filter { it.activityId == id }
+                            val roundStart = ranges.none { (week.index - 1) in it.startWeek..it.endWeek }
+                            val roundEnd = ranges.none { (week.index + 1) in it.startWeek..it.endWeek }
+                            val shape = RoundedCornerShape(
+                                topStart = if (roundStart) 6.dp else 0.dp,
+                                bottomStart = if (roundStart) 6.dp else 0.dp,
+                                topEnd = if (roundEnd) 6.dp else 0.dp,
+                                bottomEnd = if (roundEnd) 6.dp else 0.dp,
+                            )
+                            Box(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .height(subHeight)
+                                    .padding(horizontal = if (roundStart || roundEnd) 1.dp else 0.dp)
+                                    .clip(shape)
+                                    .background(color.copy(alpha = 0.75f)),
+                            )
+                        }
                     }
-                    ActivityKind.POINT -> if (week.index in eventWeeks) {
-                        Box(Modifier.size(10.dp).clip(CircleShape).background(activity.color))
+                    Row(Modifier.fillMaxWidth().height(POINT_STRIP_HEIGHT), horizontalArrangement = Arrangement.Center) {
+                        activeEventIds.take(3).forEach { id ->
+                            val color = activitiesById[id]?.color ?: Color.Gray
+                            Box(Modifier.padding(horizontal = 1.dp).size(6.dp).clip(CircleShape).background(color))
+                        }
                     }
                 }
             }
