@@ -44,6 +44,13 @@ class TimelineRepository(
     fun observeRecentByPlantAndType(plantLocalId: Long, reminderTypeLocalId: Long, limit: Int = 60): Flow<List<TimelineEventWithPhotos>> =
         eventDao.observeRecentByPlantAndType(plantLocalId, reminderTypeLocalId, limit).map { events -> events.attachPhotos() }
 
+    /** Across every plant, for a date range -- used by the Calendar screen
+     * for the visible month. Only as complete as what's already been
+     * pulled locally for that range (see pullSyncForPlant's recent-N
+     * cursor); Calendar's refresh() pulls each plant before rendering. */
+    fun observeAllInRange(from: String, to: String): Flow<List<TimelineEventWithPhotos>> =
+        eventDao.observeAllInRange(from, to).map { events -> events.attachPhotos() }
+
     suspend fun createEvent(
         plantLocalId: Long,
         eventDate: String,

@@ -60,6 +60,7 @@ fun TimelineEntryFormSheet(
     existing: TimelineEventWithPhotos?,
     plants: List<PlantEntity> = emptyList(),
     fixedPlantLocalId: Long? = null,
+    initialDate: String? = null,
     isSaving: Boolean,
     error: String?,
     onDismiss: () -> Unit,
@@ -69,7 +70,7 @@ fun TimelineEntryFormSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val colors = LunentousExtendedTheme.colors
 
-    var eventDate by remember { mutableStateOf(existing?.event?.eventDate ?: LocalDate.now().toString()) }
+    var eventDate by remember { mutableStateOf(existing?.event?.eventDate ?: initialDate ?: LocalDate.now().toString()) }
     var showDatePicker by remember { mutableStateOf(false) }
     var typeExpanded by remember { mutableStateOf(false) }
     var plantExpanded by remember { mutableStateOf(false) }
