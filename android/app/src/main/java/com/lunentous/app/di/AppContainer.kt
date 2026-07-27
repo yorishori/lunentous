@@ -13,6 +13,7 @@ import com.lunentous.app.data.repository.ReminderRuleRepository
 import com.lunentous.app.data.repository.ReminderStateRepository
 import com.lunentous.app.data.repository.ReminderTypeRepository
 import com.lunentous.app.data.repository.TimelineRepository
+import com.lunentous.app.data.sync.outbox.OutboxRepository
 
 /**
  * Manual DI -- no Hilt/Dagger. The app is small enough that a hand-wired
@@ -27,9 +28,16 @@ class AppContainer(context: Context) {
         context.applicationContext,
         LunentousDatabase::class.java,
         "lunentous.db",
-    ).build()
+    )
+        // Pre-release, no shipped installs yet -- fine to wipe local cache
+        // data on schema bumps rather than writing real migrations.
+        .fallbackToDestructiveMigration()
+        .build()
 
-    private val api = NetworkModule.createApi(sessionStore)
+    private val gson = NetworkModule.createGson()
+    private val api = NetworkModule.createApi(sessionStore, gson)
+
+    val outboxRepository = OutboxRepository(database.outboxDao(), gson)
 
     val plantRepository = PlantRepository(database.plantDao(), api, sessionStore)
     val reminderTypeRepository = ReminderTypeRepository(database.reminderTypeDao(), api, sessionStore)

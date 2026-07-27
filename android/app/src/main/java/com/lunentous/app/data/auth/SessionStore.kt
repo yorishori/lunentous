@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 /**
  * Keystore-backed storage for the two things needed to talk to a
@@ -32,15 +34,27 @@ class SessionStore(context: Context) {
 
     fun hasSession(): Boolean = getBaseUrl() != null && getToken() != null
 
+    /** Set by OutboxProcessor on a 401 -- the stored key was rejected by
+     * the server (revoked, wrong server, etc). Settings surfaces this as a
+     * "reconnect" prompt; saveSession()/clear() both reset it. */
+    private val reauthRequiredFlow = MutableStateFlow(false)
+    val reauthRequired: StateFlow<Boolean> = reauthRequiredFlow
+
+    fun markReauthRequired() {
+        reauthRequiredFlow.value = true
+    }
+
     fun saveSession(baseUrl: String, token: String) {
         prefs.edit()
             .putString(KEY_BASE_URL, normalizeBaseUrl(baseUrl))
             .putString(KEY_TOKEN, token)
             .apply()
+        reauthRequiredFlow.value = false
     }
 
     fun clear() {
         prefs.edit().clear().apply()
+        reauthRequiredFlow.value = false
     }
 
     companion object {
