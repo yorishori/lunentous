@@ -72,10 +72,20 @@ private sealed interface EntrySheetTarget {
  * ui/nav/DeepLinkTarget.ShareImage, imported to a durable File by
  * MainScaffold before this screen ever sees it) -- when present, opens the
  * new-entry sheet immediately with that photo pre-attached rather than
- * waiting for the user to tap "New entry" themselves.
+ * waiting for the user to tap "New entry" themselves. promptNewEntry is
+ * the same idea without a photo -- set by the widget's "+" button and the
+ * NewTimelineEntry app shortcut (see ui/nav/DeepLinkTarget), both of which
+ * want to land directly on "pick a plant and write an entry" rather than
+ * just the Calendar screen.
  */
 @Composable
-fun CalendarScreen(container: AppContainer, sharedPhotoFile: File? = null, onSharedPhotoConsumed: () -> Unit = {}) {
+fun CalendarScreen(
+    container: AppContainer,
+    sharedPhotoFile: File? = null,
+    onSharedPhotoConsumed: () -> Unit = {},
+    promptNewEntry: Boolean = false,
+    onNewEntryPromptConsumed: () -> Unit = {},
+) {
     val viewModel: CalendarViewModel = viewModel(factory = viewModelFactory { initializer { CalendarViewModel(container) } })
     val uiState by viewModel.uiState.collectAsState()
     val selectedPlantIds by viewModel.selectedPlantLocalIds.collectAsState()
@@ -89,6 +99,13 @@ fun CalendarScreen(container: AppContainer, sharedPhotoFile: File? = null, onSha
         sharedPhotoFile?.let { file ->
             entryTarget = EntrySheetTarget.Create(initialDate = null, initialPhoto = file)
             onSharedPhotoConsumed()
+        }
+    }
+
+    LaunchedEffect(promptNewEntry) {
+        if (promptNewEntry) {
+            entryTarget = EntrySheetTarget.Create(initialDate = null)
+            onNewEntryPromptConsumed()
         }
     }
 

@@ -19,11 +19,13 @@ import androidx.glance.appwidget.provideContent
 import androidx.glance.appwidget.updateAll
 import androidx.glance.background
 import androidx.glance.layout.Column
+import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
 import androidx.glance.layout.padding
+import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
@@ -32,11 +34,14 @@ import com.lunentous.app.LunentousApplication
 import com.lunentous.app.MainActivity
 import com.lunentous.app.data.widget.WidgetReminderItem
 import com.lunentous.app.data.widget.loadWidgetReminders
+import com.lunentous.app.ui.nav.DESTINATION_NEW_ENTRY
+import com.lunentous.app.ui.nav.EXTRA_DESTINATION
 import com.lunentous.app.ui.nav.EXTRA_PLANT_LOCAL_ID
 import java.time.LocalDate
 
 private val plantIdParam = ActionParameters.Key<Long>(EXTRA_PLANT_LOCAL_ID)
 private val reminderTypeIdParam = ActionParameters.Key<Long>("reminderTypeLocalId")
+private val destinationParam = ActionParameters.Key<String>(EXTRA_DESTINATION)
 
 private val backgroundColor = Color(0xFF1E1E2E) // Catppuccin Mocha base, matching the app's dark theme
 private val surfaceColor = Color(0xFF313244)
@@ -65,10 +70,22 @@ class LunentousWidget : GlanceAppWidget() {
                     .cornerRadius(16.dp)
                     .padding(12.dp),
             ) {
-                Text(
-                    text = if (model.overdueCount > 0) "${model.overdueCount} overdue" else "All caught up",
-                    style = TextStyle(color = ColorProvider(if (model.overdueCount > 0) overdueColor else accentColor), fontWeight = FontWeight.Bold),
-                )
+                Row(modifier = GlanceModifier.fillMaxWidth()) {
+                    Text(
+                        text = if (model.overdueCount > 0) "${model.overdueCount} overdue" else "All caught up",
+                        style = TextStyle(color = ColorProvider(if (model.overdueCount > 0) overdueColor else accentColor), fontWeight = FontWeight.Bold),
+                    )
+                    Spacer(modifier = GlanceModifier.width(8.dp))
+                    Text(
+                        "+ New entry",
+                        style = TextStyle(color = ColorProvider(accentColor), fontWeight = FontWeight.Bold),
+                        modifier = GlanceModifier
+                            .background(surfaceColor)
+                            .cornerRadius(8.dp)
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                            .clickable(actionStartActivity<MainActivity>(actionParametersOf(destinationParam to DESTINATION_NEW_ENTRY))),
+                    )
+                }
                 Spacer(modifier = GlanceModifier.height(8.dp))
 
                 if (model.items.isEmpty()) {

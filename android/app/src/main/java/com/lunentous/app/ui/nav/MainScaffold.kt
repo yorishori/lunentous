@@ -76,6 +76,12 @@ fun MainScaffold(container: AppContainer, deepLinkTarget: DeepLinkTarget? = null
     // to pre-open the new-entry sheet with that photo attached.
     var sharedPhotoFile by remember { mutableStateOf<File?>(null) }
 
+    // Set by the NewTimelineEntry deep link (widget "+" button, app
+    // shortcut) -- consumed by CalendarScreen to pre-open the new-entry
+    // sheet's plant picker immediately instead of landing on a blank
+    // Calendar screen.
+    var promptNewEntry by remember { mutableStateOf(false) }
+
     // Widget tap / app shortcut / share-to-app / notification tap all land
     // here as a DeepLinkTarget, parsed once from the launching Intent (see
     // MainActivity). Runs once per new target rather than on every
@@ -85,7 +91,10 @@ fun MainScaffold(container: AppContainer, deepLinkTarget: DeepLinkTarget? = null
         when (val target = deepLinkTarget) {
             is DeepLinkTarget.PlantDetail -> navController.navigate(plantDetailRoute(target.plantLocalId))
             DeepLinkTarget.Calendar -> navigateTo(navController, NavDestination.Calendar)
-            DeepLinkTarget.NewTimelineEntry -> navigateTo(navController, NavDestination.Calendar)
+            DeepLinkTarget.NewTimelineEntry -> {
+                promptNewEntry = true
+                navigateTo(navController, NavDestination.Calendar)
+            }
             is DeepLinkTarget.ShareImage -> {
                 val file = withContext(Dispatchers.IO) { importImageToLocalFile(context, target.uri) }
                 if (file != null) {
@@ -159,6 +168,8 @@ fun MainScaffold(container: AppContainer, deepLinkTarget: DeepLinkTarget? = null
                                 container = container,
                                 sharedPhotoFile = sharedPhotoFile,
                                 onSharedPhotoConsumed = { sharedPhotoFile = null },
+                                promptNewEntry = promptNewEntry,
+                                onNewEntryPromptConsumed = { promptNewEntry = false },
                             )
                         }
                     }
