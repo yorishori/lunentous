@@ -1130,9 +1130,23 @@ input[type="radio"] {
   font: inherit;
 }
 
-.care-timeline-cell.selected {
+.care-timeline-cell:hover {
+  background: var(--surface-hover);
+}
+
+/* One continuous highlight spanning the whole selected column (month
+   header through the week-tick row), instead of each row drawing its own
+   separate selected box -- see CareTimelineGrid.tsx. Sits behind the row
+   content in paint order and ignores pointer events so clicks still land
+   on the actual week-cell buttons. */
+.care-timeline-selection {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: var(--radius-pill);
   background: var(--accent-soft);
   box-shadow: inset 0 0 0 1px var(--accent);
+  pointer-events: none;
 }
 
 /* ---------- Calendar detail panel ---------- */
