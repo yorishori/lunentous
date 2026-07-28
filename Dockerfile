@@ -1,5 +1,8 @@
+# syntax=docker/dockerfile:1
+
 # --- Stage 1: build web SPA ---
-FROM node:20-slim AS web-build
+FROM node:22-slim AS web-build
+ENV NPM_CONFIG_UPDATE_NOTIFIER=false
 WORKDIR /app/web
 COPY web/package*.json ./
 RUN npm install
@@ -7,7 +10,8 @@ COPY web/ ./
 RUN npm run build
 
 # --- Stage 2: build server ---
-FROM node:20-slim AS server-build
+FROM node:22-slim AS server-build
+ENV NPM_CONFIG_UPDATE_NOTIFIER=false
 RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app/server
@@ -17,7 +21,8 @@ COPY server/ ./
 RUN npm run build
 
 # --- Stage 3: runtime ---
-FROM node:20-slim AS runtime
+FROM node:22-slim AS runtime
+ENV NPM_CONFIG_UPDATE_NOTIFIER=false
 RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /data/photos

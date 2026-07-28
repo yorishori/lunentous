@@ -36,6 +36,12 @@ cd lunentous
 docker compose up --build -d
 ```
 
+If that prints `DEPRECATED: The legacy builder is deprecated`, Compose
+fell back to it because the `docker-buildx-plugin` package (or
+`docker-buildx` on some distros) isn't installed — install it and rebuild
+to use BuildKit instead. It's just a slower/noisier build otherwise, not
+a broken one.
+
 Then mint your first API key (the only step that has to happen outside the
 web UI — see [Authentication](#authentication) for why):
 
