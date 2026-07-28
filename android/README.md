@@ -97,6 +97,67 @@ was scaffolded from). Use a real device instead:
 
 You should see a "Lunentous" placeholder screen launch on the phone.
 
+## Installing a release build
+
+Debug builds are auto-signed with a throwaway key generated per-machine —
+fine for iterating, but every fresh checkout gets a different one, and
+Google Play-style app stores aren't involved here anyway. For an install
+you actually want to keep updating over time, build and sign a release
+APK instead.
+
+**One-time: generate a signing key** (skip if `android/keystore.properties`
+already exists — e.g. it was set up on another machine and you copied it
+over):
+
+```bash
+cd android
+keytool -genkeypair -v \
+  -keystore release.keystore.jks \
+  -alias lunentous \
+  -keyalg RSA -keysize 2048 -validity 10000 \
+  -dname "CN=Lunentous, OU=Personal, O=Lunentous, L=Unknown, ST=Unknown, C=US"
+```
+
+`keytool` will prompt for a password (used for both the keystore and the
+key — newer `keytool` versions require them to match). Then point Gradle
+at it:
+
+```bash
+cat > keystore.properties <<EOF
+storeFile=release.keystore.jks
+storePassword=<the password you just set>
+keyAlias=lunentous
+keyPassword=<the same password>
+EOF
+```
+
+`release.keystore.jks` and `keystore.properties` are both gitignored —
+**back them up somewhere safe**. Lose them and you lose the ability to
+install an updated release build over an existing one; you'd have to
+uninstall first and start over (losing any data that hadn't synced to
+your server yet).
+
+**Build and install:**
+
+```bash
+source ~/.android-toolchain/env.sh
+./gradlew assembleRelease
+adb install -r app/build/outputs/apk/release/app-release.apk
+```
+
+If you already have a **debug** build installed, that install will fail
+with a signature mismatch (debug and release use different keys, same
+`applicationId`) — uninstall it first:
+
+```bash
+adb uninstall com.lunentous.app
+adb install -r app/build/outputs/apk/release/app-release.apk
+```
+
+From then on, release-to-release updates (`assembleRelease` + `adb
+install -r`) work fine with no uninstall needed, as long as you're
+signing with the same keystore.
+
 ## Project layout
 
 Standard single-module Android Gradle project:
