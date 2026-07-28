@@ -148,16 +148,20 @@ class CareTimelineViewModel(private val container: AppContainer) : ViewModel() {
     fun refresh() {
         viewModelScope.launch {
             isRefreshing = true
-            container.plantRepository.pullSync()
-            container.reminderTypeRepository.pullSync()
-            container.phaseTypeRepository.pullSync()
-            container.reminderStateRepository.pullSyncAll()
-            val plants = container.plantRepository.observeByArchived(false).first()
-            plants.forEach { plant ->
-                container.reminderRuleRepository.pullSyncForPlant(plant.localId)
-                container.phaseWindowRepository.pullSyncForPlant(plant.localId)
-                container.timelineRepository.pullSyncForPlant(plant.localId)
-                container.oneTimeReminderRepository.pullSyncForPlant(plant.localId)
+            // See DashboardViewModel.refresh() -- a failed pull-sync leaves
+            // Room's cached data as-is instead of crashing the app.
+            runCatching {
+                container.plantRepository.pullSync()
+                container.reminderTypeRepository.pullSync()
+                container.phaseTypeRepository.pullSync()
+                container.reminderStateRepository.pullSyncAll()
+                val plants = container.plantRepository.observeByArchived(false).first()
+                plants.forEach { plant ->
+                    container.reminderRuleRepository.pullSyncForPlant(plant.localId)
+                    container.phaseWindowRepository.pullSyncForPlant(plant.localId)
+                    container.timelineRepository.pullSyncForPlant(plant.localId)
+                    container.oneTimeReminderRepository.pullSyncForPlant(plant.localId)
+                }
             }
             isRefreshing = false
         }

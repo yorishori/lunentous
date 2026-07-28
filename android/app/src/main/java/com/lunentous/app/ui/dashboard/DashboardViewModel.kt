@@ -175,11 +175,18 @@ class DashboardViewModel(private val container: AppContainer) : ViewModel() {
     fun refresh() {
         viewModelScope.launch {
             isRefreshing = true
-            plantRepository.pullSync()
-            reminderTypeRepository.pullSync()
-            reminderStateRepository.pullSyncAll()
-            val plants = plantRepository.observeByArchived(false).first()
-            plants.forEach { plant -> oneTimeReminderRepository.pullSyncForPlant(plant.localId) }
+            // A pull-sync failure (offline, a stale server missing an
+            // endpoint the app now expects, etc.) should leave Room's
+            // already-cached data on screen, not crash the whole app --
+            // this is a background refresh, not a user-initiated action
+            // that needs to surface an error.
+            runCatching {
+                plantRepository.pullSync()
+                reminderTypeRepository.pullSync()
+                reminderStateRepository.pullSyncAll()
+                val plants = plantRepository.observeByArchived(false).first()
+                plants.forEach { plant -> oneTimeReminderRepository.pullSyncForPlant(plant.localId) }
+            }
             isRefreshing = false
         }
     }

@@ -75,13 +75,18 @@ class PlantDetailViewModel(private val container: AppContainer, private val plan
         private set
 
     init {
-        viewModelScope.launch { container.plantRepository.pullSync() }
-        viewModelScope.launch { container.reminderTypeRepository.pullSync() }
-        viewModelScope.launch { container.reminderRuleRepository.pullSyncForPlant(plantLocalId) }
-        viewModelScope.launch { container.phaseTypeRepository.pullSync() }
-        viewModelScope.launch { container.phaseWindowRepository.pullSyncForPlant(plantLocalId) }
-        viewModelScope.launch { container.timelineRepository.pullSyncForPlant(plantLocalId) }
-        viewModelScope.launch { container.oneTimeReminderRepository.pullSyncForPlant(plantLocalId) }
+        // Each on its own launch (so one failing doesn't block the others),
+        // and each wrapped in runCatching (so a pull-sync failure -- e.g.
+        // offline, or a server that's missing an endpoint this build
+        // expects -- leaves Room's cached data on screen instead of
+        // crashing the app).
+        viewModelScope.launch { runCatching { container.plantRepository.pullSync() } }
+        viewModelScope.launch { runCatching { container.reminderTypeRepository.pullSync() } }
+        viewModelScope.launch { runCatching { container.reminderRuleRepository.pullSyncForPlant(plantLocalId) } }
+        viewModelScope.launch { runCatching { container.phaseTypeRepository.pullSync() } }
+        viewModelScope.launch { runCatching { container.phaseWindowRepository.pullSyncForPlant(plantLocalId) } }
+        viewModelScope.launch { runCatching { container.timelineRepository.pullSyncForPlant(plantLocalId) } }
+        viewModelScope.launch { runCatching { container.oneTimeReminderRepository.pullSyncForPlant(plantLocalId) } }
     }
 
     fun toggleArchive() {
