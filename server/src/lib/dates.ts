@@ -53,16 +53,24 @@ export function dateInRange(
   return D >= start || D <= end;
 }
 
+/** Days in a given (1-indexed) month, accounting for leap years. */
+function daysInMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
 /** Next occurrence of a fixed calendar month/day at-or-after `from`, or
  * strictly after it when `strictlyAfter` is set -- used by annual
  * fixed-date reminder rules in place of an N-day interval. `from` and the
  * candidate date compare correctly as plain strings since both are always
- * "YYYY-MM-DD". */
+ * "YYYY-MM-DD". Feb 29 (or any day a target year can't hold) clamps to
+ * that year's actual last day of the month rather than producing an
+ * invalid date string. */
 export function nextAnnualOccurrence(from: ISODate, month: number, day: number, strictlyAfter: boolean): ISODate {
   const { y } = parseISODate(from);
-  let candidate = toISODate(y, month, day);
+  const clampedDay = (year: number) => Math.min(day, daysInMonth(year, month));
+  let candidate = toISODate(y, month, clampedDay(y));
   const shouldAdvance = strictlyAfter ? candidate <= from : candidate < from;
-  return shouldAdvance ? toISODate(y + 1, month, day) : candidate;
+  return shouldAdvance ? toISODate(y + 1, month, clampedDay(y + 1)) : candidate;
 }
 
 export interface OverridePeriodLike {

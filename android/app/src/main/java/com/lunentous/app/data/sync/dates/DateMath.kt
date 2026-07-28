@@ -34,14 +34,23 @@ object DateMath {
         return defaultIntervalDays
     }
 
+    /** Feb 29 (and any other day that a target year can't hold) clamps to
+     * that year's actual last day of the month instead of throwing --
+     * LocalDate.of() is strict about calendar validity, unlike the
+     * month/day-only ranges dateInRange deals with. */
+    private fun safeLocalDate(year: Int, month: Int, day: Int): LocalDate {
+        val maxDay = LocalDate.of(year, month, 1).lengthOfMonth()
+        return LocalDate.of(year, month, minOf(day, maxDay))
+    }
+
     /** Next occurrence of a fixed calendar month/day at-or-after `from`, or
      * strictly after it when `strictlyAfter` is set -- used by annual
      * fixed-date reminder rules in place of an N-day interval. */
     fun nextAnnualOccurrence(from: String, month: Int, day: Int, strictlyAfter: Boolean): String {
         val year = LocalDate.parse(from).year
-        var candidate = LocalDate.of(year, month, day).toString()
+        var candidate = safeLocalDate(year, month, day).toString()
         val shouldAdvance = if (strictlyAfter) candidate <= from else candidate < from
-        if (shouldAdvance) candidate = LocalDate.of(year + 1, month, day).toString()
+        if (shouldAdvance) candidate = safeLocalDate(year + 1, month, day).toString()
         return candidate
     }
 

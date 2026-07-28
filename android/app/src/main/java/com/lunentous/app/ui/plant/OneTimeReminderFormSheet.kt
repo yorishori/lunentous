@@ -92,7 +92,13 @@ fun OneTimeReminderFormSheet(
                 Spacer(Modifier.width(0.dp))
                 Button(
                     onClick = {
-                        val dueDate = LocalDate.of(year, month, day).toString()
+                        // The month/day picker allows Feb 29 regardless of
+                        // the separately-typed year field (it's year-
+                        // agnostic, like the reminder-rule pickers) -- clamp
+                        // to that year's actual last day of the month
+                        // instead of letting LocalDate.of() throw.
+                        val maxDay = LocalDate.of(year, month, 1).lengthOfMonth()
+                        val dueDate = LocalDate.of(year, month, minOf(day, maxDay)).toString()
                         onSave(dueDate, text.trim())
                     },
                     enabled = !isSaving && text.isNotBlank(),

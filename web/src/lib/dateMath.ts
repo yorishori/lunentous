@@ -28,16 +28,22 @@ export function dateInRange(date: ISODate, startMonth: number, startDay: number,
   return D >= start || D <= end;
 }
 
+function daysInMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
 /** Next occurrence of a fixed calendar month/day at-or-after `from`, or
  * strictly after it when `strictlyAfter` is set -- used by annual
- * fixed-date reminder rules in place of an N-day interval. */
+ * fixed-date reminder rules in place of an N-day interval. Feb 29 (or any
+ * day a target year can't hold) clamps to that year's actual last day of
+ * the month rather than producing an invalid date string. */
 export function nextAnnualOccurrence(from: ISODate, month: number, day: number, strictlyAfter: boolean): ISODate {
   const { y } = parseISODate(from);
   const mm = String(month).padStart(2, "0");
-  const dd = String(day).padStart(2, "0");
-  let candidate = `${y}-${mm}-${dd}`;
+  const clampedDay = (year: number) => Math.min(day, daysInMonth(year, month));
+  let candidate = `${y}-${mm}-${String(clampedDay(y)).padStart(2, "0")}`;
   const shouldAdvance = strictlyAfter ? candidate <= from : candidate < from;
-  if (shouldAdvance) candidate = `${y + 1}-${mm}-${dd}`;
+  if (shouldAdvance) candidate = `${y + 1}-${mm}-${String(clampedDay(y + 1)).padStart(2, "0")}`;
   return candidate;
 }
 
