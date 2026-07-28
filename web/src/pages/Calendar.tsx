@@ -151,7 +151,7 @@ export default function Calendar() {
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.85rem", flexWrap: "wrap", gap: "0.75rem" }}>
-        <h1 style={{ margin: 0 }}>Calendar</h1>
+        <h1 style={{ margin: 0 }}>Care timeline</h1>
         <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
           <MultiSelect
             options={allPlants.map((p) => ({ id: p.id, label: p.name }))}

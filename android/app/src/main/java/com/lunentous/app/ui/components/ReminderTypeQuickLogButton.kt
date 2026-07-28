@@ -34,15 +34,23 @@ fun ReminderTypeQuickLogButton(
     modifier: Modifier = Modifier,
     size: Dp = 48.dp,
 ) {
-    Box(
-        modifier = modifier
-            .size(size)
-            .clip(CircleShape)
-            .background(tint.copy(alpha = 0.16f))
-            .clickable(onClickLabel = contentDescription, onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(icon, contentDescription = contentDescription, tint = tint, modifier = Modifier.size(size * 0.5f))
+    // The "+" badge must NOT live inside the same Box that's clipped to
+    // CircleShape -- BottomEnd-aligns to the square bounding box's true
+    // corner, which falls outside the inscribed circle, so a shared clip
+    // would cut the badge off. Keeping the outer Box unclipped and only
+    // circle-clipping the icon's own inner Box lets the badge sit fully
+    // on top of the circle's edge instead.
+    Box(modifier = modifier.size(size), contentAlignment = Alignment.Center) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clip(CircleShape)
+                .background(tint.copy(alpha = 0.16f))
+                .clickable(onClickLabel = contentDescription, onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, contentDescription = contentDescription, tint = tint, modifier = Modifier.size(size * 0.5f))
+        }
         Box(
             modifier = Modifier
                 .align(Alignment.BottomEnd)

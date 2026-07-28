@@ -152,7 +152,16 @@ export function buildCareTimeline(input: CareTimelineInput): CareTimelineData {
     }
     const rule = (rulesByPlantId.get(state.plant_id) ?? []).find((r) => r.reminder_type_id === state.reminder_type_id);
     const occurrences = rule
-      ? projectOccurrencesInRange(state.due_date, rule.default_interval_days, rule.override_periods, windowStart, windowEnd, windowSpanDays)
+      ? projectOccurrencesInRange(
+          state.due_date,
+          rule.default_interval_days,
+          rule.override_periods,
+          windowStart,
+          windowEnd,
+          windowSpanDays,
+          rule.annual_month,
+          rule.annual_day
+        )
       : state.due_date >= windowStart && state.due_date <= windowEnd
         ? [state.due_date]
         : [];

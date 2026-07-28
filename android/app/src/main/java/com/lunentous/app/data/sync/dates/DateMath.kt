@@ -34,11 +34,25 @@ object DateMath {
         return defaultIntervalDays
     }
 
+    /** Next occurrence of a fixed calendar month/day at-or-after `from`, or
+     * strictly after it when `strictlyAfter` is set -- used by annual
+     * fixed-date reminder rules in place of an N-day interval. */
+    fun nextAnnualOccurrence(from: String, month: Int, day: Int, strictlyAfter: Boolean): String {
+        val year = LocalDate.parse(from).year
+        var candidate = LocalDate.of(year, month, day).toString()
+        val shouldAdvance = if (strictlyAfter) candidate <= from else candidate < from
+        if (shouldAdvance) candidate = LocalDate.of(year + 1, month, day).toString()
+        return candidate
+    }
+
     /** Repeatedly applies interval resolution forward from a materialized
      * due date, assuming on-time completion each time, collecting every
      * occurrence landing within [rangeStart, rangeEnd] -- including the
      * starting due date itself if it's in range. `maxIterations` bounds the
-     * walk when the due date is far outside the requested range. */
+     * walk when the due date is far outside the requested range. When
+     * `annualMonth`/`annualDay` are set (mutually exclusive with the
+     * interval fields, per an annual fixed-date rule), steps forward a
+     * year at a time instead. */
     fun projectOccurrencesInRange(
         fromDueDate: String,
         defaultIntervalDays: Int?,
@@ -46,12 +60,18 @@ object DateMath {
         rangeStart: String,
         rangeEnd: String,
         maxIterations: Int = 500,
+        annualMonth: Int? = null,
+        annualDay: Int? = null,
     ): List<String> {
         val results = mutableListOf<String>()
         var current = fromDueDate
         repeat(maxIterations) {
             if (current > rangeEnd) return results
             if (current >= rangeStart) results.add(current)
+            if (annualMonth != null && annualDay != null) {
+                current = nextAnnualOccurrence(current, annualMonth, annualDay, strictlyAfter = true)
+                return@repeat
+            }
             val interval = resolveInterval(defaultIntervalDays, periods, current) ?: return results
             current = addDays(current, interval)
         }

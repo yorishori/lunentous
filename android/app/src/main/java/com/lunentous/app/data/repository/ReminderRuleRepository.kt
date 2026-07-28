@@ -31,7 +31,13 @@ data class ReminderRuleWithPeriods(
 )
 
 private data class PeriodPayload(val startMonth: Int, val startDay: Int, val endMonth: Int, val endDay: Int, val intervalDays: Int?)
-private data class RulePayload(val reminderTypeLocalId: Long, val defaultIntervalDays: Int?, val periods: List<PeriodPayload>)
+private data class RulePayload(
+    val reminderTypeLocalId: Long,
+    val defaultIntervalDays: Int?,
+    val annualMonth: Int?,
+    val annualDay: Int?,
+    val periods: List<PeriodPayload>,
+)
 
 /**
  * Note: creating/editing/deleting a rule changes the relevant
@@ -81,11 +87,15 @@ class ReminderRuleRepository(
         reminderTypeLocalId: Long,
         defaultIntervalDays: Int?,
         overridePeriods: List<OverridePeriodEntity>,
+        annualMonth: Int? = null,
+        annualDay: Int? = null,
     ): Result<ReminderRuleWithPeriods> = runCatching {
         val rule = ReminderRuleEntity(
             plantLocalId = plantLocalId,
             reminderTypeLocalId = reminderTypeLocalId,
             defaultIntervalDays = defaultIntervalDays,
+            annualMonth = annualMonth,
+            annualDay = annualDay,
             // Stamped locally so ProvisionalDueDateCalculator's baseline
             // (rule.createdAt when no timeline event exists yet) is never
             // blank -- mirrors what the server would assign at create time.
@@ -94,7 +104,7 @@ class ReminderRuleRepository(
         )
         val ruleLocalId = ruleDao.upsert(rule)
         periodDao.insertAll(overridePeriods.map { it.copy(reminderRuleLocalId = ruleLocalId) })
-        outboxRepository.enqueueCreate(entityType, ruleLocalId, RulePayload(reminderTypeLocalId, defaultIntervalDays, overridePeriods.toPayloads()))
+        outboxRepository.enqueueCreate(entityType, ruleLocalId, RulePayload(reminderTypeLocalId, defaultIntervalDays, annualMonth, annualDay, overridePeriods.toPayloads()))
         provisionalCalculator.recompute(plantLocalId, reminderTypeLocalId)
         ReminderRuleWithPeriods(rule.copy(localId = ruleLocalId), periodDao.getByRuleOnce(ruleLocalId))
     }
@@ -103,13 +113,21 @@ class ReminderRuleRepository(
         ruleLocalId: Long,
         defaultIntervalDays: Int?,
         overridePeriods: List<OverridePeriodEntity>,
+        annualMonth: Int? = null,
+        annualDay: Int? = null,
     ): Result<ReminderRuleWithPeriods> = runCatching {
         val existing = ruleDao.getByLocalId(ruleLocalId) ?: error("Reminder rule $ruleLocalId not found locally")
-        val updated = existing.copy(defaultIntervalDays = defaultIntervalDays, dirty = existing.serverId != null, pendingSync = true)
+        val updated = existing.copy(
+            defaultIntervalDays = defaultIntervalDays,
+            annualMonth = annualMonth,
+            annualDay = annualDay,
+            dirty = existing.serverId != null,
+            pendingSync = true,
+        )
         ruleDao.upsert(updated)
         periodDao.deleteByRule(ruleLocalId)
         periodDao.insertAll(overridePeriods.map { it.copy(reminderRuleLocalId = ruleLocalId) })
-        outboxRepository.enqueueUpdate(entityType, ruleLocalId, RulePayload(existing.reminderTypeLocalId, defaultIntervalDays, overridePeriods.toPayloads()))
+        outboxRepository.enqueueUpdate(entityType, ruleLocalId, RulePayload(existing.reminderTypeLocalId, defaultIntervalDays, annualMonth, annualDay, overridePeriods.toPayloads()))
         provisionalCalculator.recompute(existing.plantLocalId, existing.reminderTypeLocalId)
         ReminderRuleWithPeriods(updated, periodDao.getByRuleOnce(ruleLocalId))
     }
@@ -155,14 +173,20 @@ class ReminderRuleRepository(
                 val payload = gson.fromJson(op.payloadJson, RulePayload::class.java)
                 val plantServerId = plantDao.getByLocalId(rule.plantLocalId)?.serverId ?: return OutboxResult.CascadeFailed
                 val reminderTypeServerId = reminderTypeDao.getByLocalId(payload.reminderTypeLocalId)?.serverId ?: return OutboxResult.CascadeFailed
-                val dto = api.createReminderRule(plantServerId, CreateReminderRuleRequest(reminderTypeServerId, payload.defaultIntervalDays, payload.periods.toDtos()))
+                val dto = api.createReminderRule(
+                    plantServerId,
+                    CreateReminderRuleRequest(reminderTypeServerId, payload.defaultIntervalDays, payload.annualMonth, payload.annualDay, payload.periods.toDtos()),
+                )
                 upsertFromDto(dto, rule.plantLocalId, payload.reminderTypeLocalId, preserveLocalId = op.entityLocalId)
                 OutboxResult.Success
             }
             OutboxOpType.UPDATE -> {
                 val serverId = rule.serverId ?: return OutboxResult.CascadeFailed
                 val payload = gson.fromJson(op.payloadJson, RulePayload::class.java)
-                val dto = api.updateReminderRule(serverId, UpdateReminderRuleRequest(payload.defaultIntervalDays, payload.periods.toDtos()))
+                val dto = api.updateReminderRule(
+                    serverId,
+                    UpdateReminderRuleRequest(payload.defaultIntervalDays, payload.annualMonth, payload.annualDay, payload.periods.toDtos()),
+                )
                 upsertFromDto(dto, rule.plantLocalId, rule.reminderTypeLocalId, preserveLocalId = op.entityLocalId)
                 OutboxResult.Success
             }
@@ -189,6 +213,8 @@ class ReminderRuleRepository(
             plantLocalId = plantLocalId,
             reminderTypeLocalId = reminderTypeLocalId,
             defaultIntervalDays = dto.defaultIntervalDays,
+            annualMonth = dto.annualMonth,
+            annualDay = dto.annualDay,
             createdAt = dto.createdAt,
         )
         val ruleLocalId = if (existing != null) existing.localId else ruleDao.upsert(entity)

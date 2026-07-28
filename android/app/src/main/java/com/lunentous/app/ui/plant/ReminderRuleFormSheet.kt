@@ -18,6 +18,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -42,6 +43,7 @@ import com.lunentous.app.data.local.entity.ReminderTypeEntity
 import com.lunentous.app.data.repository.ReminderRuleWithPeriods
 import com.lunentous.app.ui.components.MonthDayPicker
 import com.lunentous.app.ui.theme.LunentousExtendedTheme
+import java.time.LocalDate
 
 /**
  * Simplified into a single scrollable sheet rather than web/src/components/
@@ -57,7 +59,7 @@ fun ReminderRuleFormSheet(
     isSaving: Boolean,
     error: String?,
     onDismiss: () -> Unit,
-    onSave: (reminderTypeLocalId: Long, defaultIntervalDays: Int?, periods: List<OverridePeriodEntity>) -> Unit,
+    onSave: (reminderTypeLocalId: Long, defaultIntervalDays: Int?, periods: List<OverridePeriodEntity>, annualMonth: Int?, annualDay: Int?) -> Unit,
     onDelete: (() -> Unit)?,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -67,6 +69,9 @@ fun ReminderRuleFormSheet(
     var selectedTypeLocalId by remember { mutableStateOf(existing?.rule?.reminderTypeLocalId ?: selectableTypes.firstOrNull()?.localId ?: 0L) }
     var intervalText by remember { mutableStateOf(existing?.rule?.defaultIntervalDays?.toString() ?: "") }
     val periods = remember { existing?.overridePeriods.orEmpty().toMutableStateList() }
+    var isAnnualMode by remember { mutableStateOf(existing?.rule?.annualMonth != null) }
+    var annualMonth by remember { mutableStateOf(existing?.rule?.annualMonth ?: LocalDate.now().monthValue) }
+    var annualDay by remember { mutableStateOf(existing?.rule?.annualDay ?: LocalDate.now().dayOfMonth) }
 
     val selectedType = selectableTypes.find { it.localId == selectedTypeLocalId }
 
@@ -92,33 +97,48 @@ fun ReminderRuleFormSheet(
                 }
             }
 
-            OutlinedTextField(
-                value = intervalText,
-                onValueChange = { intervalText = it.filter { c -> c.isDigit() } },
-                label = { Text("Default interval, in days") },
-                placeholder = { Text("Blank = paused outside overrides") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
-            )
-
-            Text("Seasonal overrides (optional)", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 16.dp, bottom = 6.dp))
-            Text(
-                "Override the default interval during specific date ranges.",
-                style = MaterialTheme.typography.bodySmall,
-                color = colors.textMuted,
-                modifier = Modifier.padding(bottom = 8.dp),
-            )
-            periods.forEachIndexed { index, period ->
-                OverridePeriodRow(
-                    period = period,
-                    onChange = { periods[index] = it },
-                    onRemove = { periods.removeAt(index) },
-                )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 12.dp)) {
+                FilterChip(selected = !isAnnualMode, onClick = { isAnnualMode = false }, label = { Text("Every N days") })
+                FilterChip(selected = isAnnualMode, onClick = { isAnnualMode = true }, label = { Text("Every year on a date") })
             }
-            OutlinedButton(onClick = { periods.add(OverridePeriodEntity(reminderRuleLocalId = 0, startMonth = 1, startDay = 1, endMonth = 1, endDay = 1, intervalDays = null)) }) {
-                Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                Text(" Add override", modifier = Modifier.padding(start = 4.dp))
+
+            if (isAnnualMode) {
+                Text(
+                    "Recurs every year on this date -- can't be combined with seasonal overrides.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.textMuted,
+                    modifier = Modifier.padding(top = 8.dp, bottom = 8.dp),
+                )
+                MonthDayPicker(month = annualMonth, day = annualDay, onChange = { m, d -> annualMonth = m; annualDay = d })
+            } else {
+                OutlinedTextField(
+                    value = intervalText,
+                    onValueChange = { intervalText = it.filter { c -> c.isDigit() } },
+                    label = { Text("Default interval, in days") },
+                    placeholder = { Text("Blank = paused outside overrides") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                )
+
+                Text("Seasonal overrides (optional)", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 16.dp, bottom = 6.dp))
+                Text(
+                    "Override the default interval during specific date ranges.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.textMuted,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
+                periods.forEachIndexed { index, period ->
+                    OverridePeriodRow(
+                        period = period,
+                        onChange = { periods[index] = it },
+                        onRemove = { periods.removeAt(index) },
+                    )
+                }
+                OutlinedButton(onClick = { periods.add(OverridePeriodEntity(reminderRuleLocalId = 0, startMonth = 1, startDay = 1, endMonth = 1, endDay = 1, intervalDays = null)) }) {
+                    Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Text(" Add override", modifier = Modifier.padding(start = 4.dp))
+                }
             }
 
             error?.let { Text(it, color = colors.overdue, modifier = Modifier.padding(top = 12.dp)) }
@@ -132,7 +152,11 @@ fun ReminderRuleFormSheet(
                 Spacer(Modifier.width(0.dp))
                 Button(
                     onClick = {
-                        onSave(selectedTypeLocalId, intervalText.toIntOrNull(), periods.toList())
+                        if (isAnnualMode) {
+                            onSave(selectedTypeLocalId, null, emptyList(), annualMonth, annualDay)
+                        } else {
+                            onSave(selectedTypeLocalId, intervalText.toIntOrNull(), periods.toList(), null, null)
+                        }
                     },
                     enabled = !isSaving && selectedTypeLocalId != 0L,
                     modifier = Modifier.fillMaxWidth(),

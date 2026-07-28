@@ -39,7 +39,19 @@ class ProvisionalDueDateCalculator(
 
         val periods = periodDao.getByRuleOnce(rule.localId)
         val interval = DateMath.resolveInterval(rule.defaultIntervalDays, periods, baselineDate)
-        val dueDate = interval?.let { DateMath.addDays(baselineDate, it) }
+        // Never logged: the baseline date itself is due (today counts as
+        // day one of the interval), not baseline + interval -- mirrors
+        // recompute.ts's identical fix. Annual fixed-date rules (interval
+        // null, annualMonth/annualDay set) step to the next occurrence of
+        // that calendar date instead.
+        val annualMonth = rule.annualMonth
+        val annualDay = rule.annualDay
+        val dueDate = when {
+            interval != null && latestEvent != null -> DateMath.addDays(baselineDate, interval)
+            interval != null -> baselineDate
+            annualMonth != null && annualDay != null -> DateMath.nextAnnualOccurrence(baselineDate, annualMonth, annualDay, strictlyAfter = latestEvent != null)
+            else -> null
+        }
 
         val existing = reminderStateDao.getByPlantAndType(plantLocalId, reminderTypeLocalId)
         reminderStateDao.upsert(

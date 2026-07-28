@@ -37,7 +37,7 @@ import com.lunentous.app.data.local.entity.TimelineEventEntity
         PhotoEntity::class,
         OutboxOperationEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)

@@ -35,6 +35,12 @@ CREATE TABLE IF NOT EXISTS reminder_rules (
     plant_id INTEGER NOT NULL REFERENCES plants(id) ON DELETE CASCADE,
     reminder_type_id INTEGER NOT NULL REFERENCES reminder_types(id),
     default_interval_days INTEGER,
+    -- Mutually exclusive with default_interval_days/override_periods: a
+    -- fixed calendar date the reminder recurs on every year, instead of an
+    -- N-day interval. Enforced at the API layer (see routes/reminderRules.ts),
+    -- not in DDL, same convention as override_periods' overlap rule below.
+    annual_month INTEGER CHECK(annual_month IS NULL OR annual_month BETWEEN 1 AND 12),
+    annual_day INTEGER CHECK(annual_day IS NULL OR annual_day BETWEEN 1 AND 31),
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(plant_id, reminder_type_id)
 );

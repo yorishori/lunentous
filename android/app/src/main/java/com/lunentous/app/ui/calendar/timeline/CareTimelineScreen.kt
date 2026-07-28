@@ -186,6 +186,13 @@ fun CareTimelineScreen(
                     }
                 }
 
+                WeekScheduleCard(
+                    uiState = uiState,
+                    selectedWeek = viewModel.selectedWeek,
+                    activitiesById = activitiesById,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+
                 DetailPanel(
                     uiState = uiState,
                     selectedWeek = viewModel.selectedWeek,
@@ -415,6 +422,71 @@ private fun WeekTickRow(weeks: List<WeekInfo>, selectedWeek: Int, today: LocalDa
  * screen reader/switch access. */
 private fun Modifier.selectableCell(isSelected: Boolean): Modifier = this
     .semantics { selected = isSelected }
+
+/** Between the grid and the logged-entries panel: what's actually
+ * scheduled this week per plant (active phase windows + reminder
+ * occurrences), grouped by plant rather than flat -- the grid above
+ * already shows this visually as pills/dots, but at a glance across many
+ * plants/weeks it's hard to read exactly which activity belongs to which
+ * plant, so this spells it out in text for the selected week only. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun WeekScheduleCard(uiState: CareTimelineUiState, selectedWeek: Int, activitiesById: Map<String, CareActivity>, modifier: Modifier = Modifier) {
+    val colors = LunentousExtendedTheme.colors
+    val plantSchedules = remember(selectedWeek, uiState.ranges, uiState.events, uiState.allPlants) {
+        uiState.allPlants.mapNotNull { plant ->
+            val ranges = uiState.ranges.filter { it.plantLocalId == plant.localId && selectedWeek in it.startWeek..it.endWeek }
+            val events = uiState.events.filter { it.plantLocalId == plant.localId && it.week == selectedWeek }
+            if (ranges.isEmpty() && events.isEmpty()) null else Triple(plant, ranges, events)
+        }
+    }
+
+    OutlinedCard(modifier = modifier) {
+        Column(Modifier.padding(12.dp)) {
+            Text("Reminders & phases this week", style = MaterialTheme.typography.titleSmall)
+            if (plantSchedules.isEmpty()) {
+                Text(
+                    "Nothing scheduled this week.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.textMuted,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 8.dp)) {
+                    plantSchedules.forEach { (plant, ranges, events) ->
+                        Column {
+                            Text(plant.name, style = MaterialTheme.typography.bodyMedium)
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier.padding(top = 4.dp),
+                            ) {
+                                (ranges.map { it.activityId } + events.map { it.activityId }).distinct().forEach { id ->
+                                    activitiesById[id]?.let { ScheduleChip(it) }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ScheduleChip(activity: CareActivity) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(activity.color.copy(alpha = 0.16f))
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+    ) {
+        Icon(activity.icon, contentDescription = null, tint = activity.color, modifier = Modifier.size(14.dp))
+        Text(activity.label, style = MaterialTheme.typography.labelSmall, color = activity.color)
+    }
+}
 
 /** Shows every timeline entry actually logged during the selected week
  * (not the phase-window/reminder-occurrence summary the grid itself

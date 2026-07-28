@@ -1,11 +1,13 @@
 import { db } from "../db/client.js";
-import { addDays, resolveInterval, type ISODate, type OverridePeriodLike } from "./dates.js";
+import { addDays, nextAnnualOccurrence, resolveInterval, type ISODate, type OverridePeriodLike } from "./dates.js";
 
 interface ReminderRuleRow {
   id: number;
   plant_id: number;
   reminder_type_id: number;
   default_interval_days: number | null;
+  annual_month: number | null;
+  annual_day: number | null;
   created_at: string;
 }
 
@@ -50,7 +52,18 @@ export function recomputeReminderState(plantId: number, reminderTypeId: number):
     .all(rule.id) as OverridePeriodLike[];
 
   const interval = resolveInterval({ default_interval_days: rule.default_interval_days }, periods, baselineDate);
-  const dueDate = interval != null ? addDays(baselineDate, interval) : null;
+  // Never logged: the baseline date itself is due (today counts as day
+  // one of the interval), not baseline + interval -- otherwise a fresh
+  // "every N days" rule wouldn't come due until N days from now instead
+  // of starting its count today.
+  const dueDate =
+    interval != null
+      ? latestEvent
+        ? addDays(baselineDate, interval)
+        : baselineDate
+      : rule.annual_month != null && rule.annual_day != null
+        ? nextAnnualOccurrence(baselineDate, rule.annual_month, rule.annual_day, latestEvent != null)
+        : null;
 
   db.prepare(
     `INSERT INTO reminder_states (plant_id, reminder_type_id, due_date, notified)

@@ -7,6 +7,7 @@ import com.lunentous.app.data.local.entity.OutboxEntityType
 import com.lunentous.app.data.local.entity.OutboxOpType
 import com.lunentous.app.data.local.entity.OutboxOperationEntity
 import com.lunentous.app.data.local.entity.OutboxStatus
+import com.lunentous.app.ui.widget.refreshLunentousWidget
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -20,7 +21,12 @@ import kotlinx.coroutines.flow.Flow
  *
  * Every successful enqueue schedules a sync attempt (see SyncScheduler) --
  * the repositories that call this never have to remember to do so
- * themselves.
+ * themselves. It also refreshes the home screen widget right here rather
+ * than only after OutboxSyncWorker eventually runs -- that worker requires
+ * network connectivity, but the local Room write behind every one of these
+ * enqueue calls has already landed by this point regardless of network
+ * state, so the widget should reflect it immediately rather than only once
+ * a connection comes back.
  */
 class OutboxRepository(private val dao: OutboxDao, private val gson: Gson, private val appContext: Context) {
     fun observePending(): Flow<List<OutboxOperationEntity>> = dao.observePending()
@@ -40,6 +46,7 @@ class OutboxRepository(private val dao: OutboxDao, private val gson: Gson, priva
             ),
         )
         SyncScheduler.triggerOutboxSync(appContext)
+        refreshLunentousWidget(appContext)
     }
 
     /** Squashes into a pending CREATE or UPDATE for the same entity if one
@@ -61,6 +68,7 @@ class OutboxRepository(private val dao: OutboxDao, private val gson: Gson, priva
             )
         }
         SyncScheduler.triggerOutboxSync(appContext)
+        refreshLunentousWidget(appContext)
     }
 
     /** Returns true if the entity never made it to the server (only had a
@@ -72,6 +80,7 @@ class OutboxRepository(private val dao: OutboxDao, private val gson: Gson, priva
         val pendingCreate = dao.findPendingForEntity(entityType, entityLocalId, listOf(OutboxOpType.CREATE))
         if (pendingCreate != null && pendingCreate.opType == OutboxOpType.CREATE) {
             dao.deleteById(pendingCreate.id)
+            refreshLunentousWidget(appContext)
             return true
         }
         dao.findPendingUpdateForEntity(entityType, entityLocalId)?.let { dao.deleteById(it.id) }
@@ -84,6 +93,7 @@ class OutboxRepository(private val dao: OutboxDao, private val gson: Gson, priva
             ),
         )
         SyncScheduler.triggerOutboxSync(appContext)
+        refreshLunentousWidget(appContext)
         return false
     }
 
@@ -97,6 +107,7 @@ class OutboxRepository(private val dao: OutboxDao, private val gson: Gson, priva
             ),
         )
         SyncScheduler.triggerOutboxSync(appContext)
+        refreshLunentousWidget(appContext)
     }
 
     /** No squashing -- each call just adds its own op, so photos captured
@@ -112,6 +123,7 @@ class OutboxRepository(private val dao: OutboxDao, private val gson: Gson, priva
             ),
         )
         SyncScheduler.triggerOutboxSync(appContext)
+        refreshLunentousWidget(appContext)
     }
 
     suspend fun markInFlight(id: Long) = dao.setStatus(id, OutboxStatus.IN_FLIGHT)
@@ -122,6 +134,7 @@ class OutboxRepository(private val dao: OutboxDao, private val gson: Gson, priva
     suspend fun retry(id: Long) {
         dao.markPendingRetry(id)
         SyncScheduler.triggerOutboxSync(appContext)
+        refreshLunentousWidget(appContext)
     }
     suspend fun discard(id: Long) = dao.deleteById(id)
 }

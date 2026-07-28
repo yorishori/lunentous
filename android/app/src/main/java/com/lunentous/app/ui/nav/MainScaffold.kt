@@ -239,10 +239,21 @@ fun MainScaffold(container: AppContainer, deepLinkTarget: DeepLinkTarget? = null
     }
 }
 
+/**
+ * Plant Detail/Gallery are pushed as plain child routes (no popUpTo) on
+ * top of whichever tab was active, so a tab's own entry is usually still
+ * sitting further down the back stack rather than gone -- popping
+ * straight back to it (if present) is simpler and more reliable than the
+ * navigate()-with-popUpTo/restoreState dance below, which is really only
+ * needed for switching to a tab that isn't currently on the stack at all.
+ */
 private fun navigateTo(navController: NavHostController, destination: NavDestination) {
-    navController.navigate(destination.route) {
-        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-        launchSingleTop = true
-        restoreState = true
+    val poppedToExisting = navController.popBackStack(destination.route, false)
+    if (!poppedToExisting) {
+        navController.navigate(destination.route) {
+            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+            launchSingleTop = true
+            restoreState = true
+        }
     }
 }

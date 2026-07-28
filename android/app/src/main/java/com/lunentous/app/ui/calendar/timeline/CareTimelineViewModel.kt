@@ -257,7 +257,16 @@ private fun buildUiState(
         val activityId = "reminder-${type.localId}"
         val rule = rulesByPlantAndType[state.plantLocalId to state.reminderTypeLocalId]
         val occurrences = if (rule != null) {
-            DateMath.projectOccurrencesInRange(dueDate, rule.rule.defaultIntervalDays, rule.overridePeriods, windowStartStr, windowEndStr, maxProjectionIterations)
+            DateMath.projectOccurrencesInRange(
+                dueDate,
+                rule.rule.defaultIntervalDays,
+                rule.overridePeriods,
+                windowStartStr,
+                windowEndStr,
+                maxProjectionIterations,
+                rule.rule.annualMonth,
+                rule.rule.annualDay,
+            )
         } else if (dueDate in windowStartStr..windowEndStr) {
             listOf(dueDate)
         } else {

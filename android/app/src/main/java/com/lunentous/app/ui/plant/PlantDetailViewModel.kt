@@ -89,15 +89,17 @@ class PlantDetailViewModel(private val container: AppContainer, private val plan
         reminderTypeLocalId: Long,
         defaultIntervalDays: Int?,
         periods: List<OverridePeriodEntity>,
+        annualMonth: Int?,
+        annualDay: Int?,
         onDone: () -> Unit,
     ) {
         viewModelScope.launch {
             isSavingRule = true
             ruleError = null
             val result = if (existingRuleLocalId != null) {
-                container.reminderRuleRepository.update(existingRuleLocalId, defaultIntervalDays, periods)
+                container.reminderRuleRepository.update(existingRuleLocalId, defaultIntervalDays, periods, annualMonth, annualDay)
             } else {
-                container.reminderRuleRepository.create(plantLocalId, reminderTypeLocalId, defaultIntervalDays, periods)
+                container.reminderRuleRepository.create(plantLocalId, reminderTypeLocalId, defaultIntervalDays, periods, annualMonth, annualDay)
             }
             isSavingRule = false
             result.onSuccess {

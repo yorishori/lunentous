@@ -5,6 +5,7 @@ import { apiFetch, ApiError } from "../api/client";
 import type { OverridePeriod, ReminderRule, ReminderType } from "../api/types";
 import { useToast } from "./Toast";
 import OverridePeriodEditor from "./OverridePeriodEditor";
+import MonthDayPicker from "./MonthDayPicker";
 import Spinner from "./Spinner";
 import { getIcon } from "../lib/icons";
 
@@ -28,6 +29,10 @@ export default function ReminderRuleForm({ plantId, reminderTypes, existingRule,
     existingRule?.default_interval_days != null ? String(existingRule.default_interval_days) : "4"
   );
   const [periods, setPeriods] = useState<OverridePeriod[]>(existingRule?.override_periods ?? []);
+  const today = new Date();
+  const [isAnnualMode, setIsAnnualMode] = useState(existingRule?.annual_month != null);
+  const [annualMonth, setAnnualMonth] = useState(existingRule?.annual_month ?? today.getMonth() + 1);
+  const [annualDay, setAnnualDay] = useState(existingRule?.annual_day ?? today.getDate());
 
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: ["reminder-rules", plantId] });
@@ -37,11 +42,21 @@ export default function ReminderRuleForm({ plantId, reminderTypes, existingRule,
 
   const save = useMutation({
     mutationFn: async () => {
-      const body = {
-        reminder_type_id: reminderTypeId,
-        default_interval_days: defaultInterval ? Number(defaultInterval) : null,
-        override_periods: periods.map(({ id: _id, ...rest }) => rest),
-      };
+      const body = isAnnualMode
+        ? {
+            reminder_type_id: reminderTypeId,
+            default_interval_days: null,
+            override_periods: [],
+            annual_month: annualMonth,
+            annual_day: annualDay,
+          }
+        : {
+            reminder_type_id: reminderTypeId,
+            default_interval_days: defaultInterval ? Number(defaultInterval) : null,
+            override_periods: periods.map(({ id: _id, ...rest }) => rest),
+            annual_month: null,
+            annual_day: null,
+          };
       return existingRule
         ? apiFetch(`/reminder-rules/${existingRule.id}`, { method: "PATCH", body })
         : apiFetch(`/plants/${plantId}/reminder-rules`, { method: "POST", body });
@@ -104,25 +119,60 @@ export default function ReminderRuleForm({ plantId, reminderTypes, existingRule,
               </select>
             </div>
             <div className="form-row">
-              <label>Default interval, in days</label>
-              <input
-                type="number"
-                min={1}
-                placeholder="Leave blank to pause outside override periods"
-                value={defaultInterval}
-                onChange={(e) => setDefaultInterval(e.target.value)}
-              />
+              <label>Repeats</label>
+              <div style={{ display: "flex", gap: "0.5rem" }}>
+                <button
+                  type="button"
+                  className={`btn${isAnnualMode ? " secondary" : ""}`}
+                  onClick={() => setIsAnnualMode(false)}
+                >
+                  Every N days
+                </button>
+                <button
+                  type="button"
+                  className={`btn${isAnnualMode ? "" : " secondary"}`}
+                  onClick={() => setIsAnnualMode(true)}
+                >
+                  Every year on a date
+                </button>
+              </div>
             </div>
+            {isAnnualMode ? (
+              <div className="form-row">
+                <label>Annual date</label>
+                <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", marginTop: 0 }}>
+                  Recurs every year on this date — can't be combined with seasonal overrides.
+                </p>
+                <MonthDayPicker month={annualMonth} day={annualDay} onChange={(m, d) => { setAnnualMonth(m); setAnnualDay(d); }} />
+              </div>
+            ) : (
+              <div className="form-row">
+                <label>Default interval, in days</label>
+                <input
+                  type="number"
+                  min={1}
+                  placeholder="Leave blank to pause outside override periods"
+                  value={defaultInterval}
+                  onChange={(e) => setDefaultInterval(e.target.value)}
+                />
+              </div>
+            )}
           </>
         )}
 
         {step === 1 && (
           <div className="form-row">
-            <label>Seasonal overrides (optional)</label>
-            <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", marginTop: 0 }}>
-              Override the default interval during specific date ranges — e.g. water less often over winter.
-            </p>
-            <OverridePeriodEditor periods={periods} onChange={setPeriods} />
+            {isAnnualMode ? (
+              <p style={{ color: "var(--text-muted)" }}>Not available for annual fixed-date reminders.</p>
+            ) : (
+              <>
+                <label>Seasonal overrides (optional)</label>
+                <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", marginTop: 0 }}>
+                  Override the default interval during specific date ranges — e.g. water less often over winter.
+                </p>
+                <OverridePeriodEditor periods={periods} onChange={setPeriods} />
+              </>
+            )}
           </div>
         )}
 
@@ -145,22 +195,28 @@ export default function ReminderRuleForm({ plantId, reminderTypes, existingRule,
               </span>
               <strong>{selectedType?.name}</strong>
             </div>
-            <p style={{ margin: "0.25rem 0" }}>
-              {defaultInterval
-                ? `Every ${defaultInterval} days by default`
-                : "Paused by default (no reminder outside overrides)"}
-            </p>
-            {periods.length > 0 ? (
-              <ul style={{ margin: "0.5rem 0 0", paddingLeft: "1.2rem" }}>
-                {periods.map((p, i) => (
-                  <li key={i} style={{ fontSize: "0.88rem" }}>
-                    {p.start_month}/{p.start_day} – {p.end_month}/{p.end_day}:{" "}
-                    {p.interval_days ? `every ${p.interval_days} days` : "paused"}
-                  </li>
-                ))}
-              </ul>
+            {isAnnualMode ? (
+              <p style={{ margin: "0.25rem 0" }}>Every year on {annualMonth}/{annualDay}</p>
             ) : (
-              <p style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>No seasonal overrides.</p>
+              <>
+                <p style={{ margin: "0.25rem 0" }}>
+                  {defaultInterval
+                    ? `Every ${defaultInterval} days by default`
+                    : "Paused by default (no reminder outside overrides)"}
+                </p>
+                {periods.length > 0 ? (
+                  <ul style={{ margin: "0.5rem 0 0", paddingLeft: "1.2rem" }}>
+                    {periods.map((p, i) => (
+                      <li key={i} style={{ fontSize: "0.88rem" }}>
+                        {p.start_month}/{p.start_day} – {p.end_month}/{p.end_day}:{" "}
+                        {p.interval_days ? `every ${p.interval_days} days` : "paused"}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>No seasonal overrides.</p>
+                )}
+              </>
             )}
           </div>
         )}

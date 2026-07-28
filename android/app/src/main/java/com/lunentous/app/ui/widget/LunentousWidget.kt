@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.action.ActionParameters
@@ -18,6 +19,8 @@ import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.appwidget.updateAll
 import androidx.glance.background
+import androidx.glance.layout.Alignment
+import androidx.glance.layout.Box
 import androidx.glance.layout.Column
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
@@ -25,6 +28,7 @@ import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
 import androidx.glance.layout.padding
+import androidx.glance.layout.size
 import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
@@ -32,6 +36,7 @@ import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.lunentous.app.LunentousApplication
 import com.lunentous.app.MainActivity
+import com.lunentous.app.data.sync.outbox.SyncScheduler
 import com.lunentous.app.data.widget.WidgetReminderItem
 import com.lunentous.app.data.widget.loadWidgetReminders
 import com.lunentous.app.ui.nav.DESTINATION_NEW_ENTRY
@@ -51,11 +56,13 @@ private val accentColor = Color(0xFFA6E3A1)
 private val overdueColor = Color(0xFFF38BA8)
 
 /**
- * Overdue count + next few reminders, one-tap mark-done -- per the Android
- * plan's native-additions list. No GlanceStateDefinition: each
- * provideGlance call just re-reads Room directly (see
- * data/widget/WidgetReminderLoader.kt), since that's already fast/local
- * and avoids a second persisted-state copy of the same data.
+ * Overdue/This Week/Later sections + one-tap mark-done, styled to echo
+ * the Dashboard's own task list (colored monogram badge, plant + type
+ * name, due label) -- per the Android plan's native-additions list. No
+ * GlanceStateDefinition: each provideGlance call just re-reads Room
+ * directly (see data/widget/WidgetReminderLoader.kt), since that's
+ * already fast/local and avoids a second persisted-state copy of the same
+ * data.
  */
 class LunentousWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
@@ -70,10 +77,10 @@ class LunentousWidget : GlanceAppWidget() {
                     .cornerRadius(16.dp)
                     .padding(12.dp),
             ) {
-                Row(modifier = GlanceModifier.fillMaxWidth()) {
+                Row(modifier = GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.Vertical.CenterVertically) {
                     Text(
-                        text = if (model.overdueCount > 0) "${model.overdueCount} overdue" else "All caught up",
-                        style = TextStyle(color = ColorProvider(if (model.overdueCount > 0) overdueColor else accentColor), fontWeight = FontWeight.Bold),
+                        text = "Lunentous",
+                        style = TextStyle(color = ColorProvider(textColor), fontWeight = FontWeight.Bold, fontSize = 16.sp),
                         modifier = GlanceModifier.defaultWeight(),
                     )
                     Text(
@@ -85,13 +92,27 @@ class LunentousWidget : GlanceAppWidget() {
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                             .clickable(actionStartActivity<MainActivity>(actionParametersOf(destinationParam to DESTINATION_NEW_ENTRY))),
                     )
+                    Spacer(modifier = GlanceModifier.width(6.dp))
+                    Text(
+                        "↻",
+                        style = TextStyle(color = ColorProvider(accentColor), fontWeight = FontWeight.Bold),
+                        modifier = GlanceModifier
+                            .background(surfaceColor)
+                            .cornerRadius(8.dp)
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                            .clickable(actionRunCallback<RefreshAction>()),
+                    )
                 }
                 Spacer(modifier = GlanceModifier.height(8.dp))
 
-                if (model.items.isEmpty()) {
-                    Text("Nothing due soon", style = TextStyle(color = ColorProvider(mutedColor)))
+                if (model.isEmpty) {
+                    Box(modifier = GlanceModifier.fillMaxWidth().padding(vertical = 16.dp), contentAlignment = Alignment.Center) {
+                        Text("All caught up", style = TextStyle(color = ColorProvider(accentColor), fontWeight = FontWeight.Bold))
+                    }
                 } else {
-                    model.items.forEach { item -> ReminderRow(item) }
+                    ReminderSection("Overdue", model.overdue, overdueColor)
+                    ReminderSection("This Week", model.thisWeek, textColor)
+                    ReminderSection("Later", model.later, mutedColor)
                 }
             }
         }
@@ -99,24 +120,52 @@ class LunentousWidget : GlanceAppWidget() {
 }
 
 @Composable
+private fun ReminderSection(title: String, items: List<WidgetReminderItem>, titleColor: Color) {
+    if (items.isEmpty()) return
+    Text(
+        title,
+        style = TextStyle(color = ColorProvider(titleColor), fontWeight = FontWeight.Bold, fontSize = 12.sp),
+        modifier = GlanceModifier.padding(top = 4.dp, bottom = 2.dp),
+    )
+    items.forEach { item -> ReminderRow(item) }
+}
+
+@Composable
 private fun ReminderRow(item: WidgetReminderItem) {
-    Column(
+    val typeColor = item.reminderTypeColor?.let { runCatching { Color(android.graphics.Color.parseColor(it)) }.getOrNull() } ?: accentColor
+
+    Row(
+        verticalAlignment = Alignment.Vertical.CenterVertically,
         modifier = GlanceModifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp)
+            .padding(vertical = 3.dp)
             .background(surfaceColor)
             .cornerRadius(10.dp)
             .padding(8.dp)
             .clickable(actionStartActivity<MainActivity>(actionParametersOf(plantIdParam to item.plantLocalId))),
     ) {
-        Text(item.plantName, style = TextStyle(color = ColorProvider(textColor), fontWeight = FontWeight.Bold))
+        // Glance can't render the app's Material icon set directly, so a
+        // colored monogram stands in for the type's own icon+color badge
+        // used on the Dashboard's equivalent row.
+        Box(
+            modifier = GlanceModifier.size(28.dp).background(typeColor).cornerRadius(14.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                item.reminderTypeName.take(1).uppercase(),
+                style = TextStyle(color = ColorProvider(backgroundColor), fontWeight = FontWeight.Bold, fontSize = 13.sp),
+            )
+        }
+        Spacer(modifier = GlanceModifier.width(8.dp))
+        Column(modifier = GlanceModifier.defaultWeight()) {
+            Text(item.plantName, style = TextStyle(color = ColorProvider(textColor), fontWeight = FontWeight.Bold))
+            Text(
+                "${item.reminderTypeName} — ${describeDue(item.daysOverdue)}",
+                style = TextStyle(color = ColorProvider(if (item.daysOverdue >= 0) overdueColor else mutedColor)),
+            )
+        }
         Text(
-            "${item.reminderTypeName} — ${describeDue(item.daysOverdue)}",
-            style = TextStyle(color = ColorProvider(if (item.daysOverdue >= 0) overdueColor else mutedColor)),
-        )
-        Spacer(modifier = GlanceModifier.height(6.dp))
-        Text(
-            "Mark done",
+            "Done",
             style = TextStyle(color = ColorProvider(accentColor), fontWeight = FontWeight.Bold),
             modifier = GlanceModifier
                 .background(backgroundColor)
@@ -154,9 +203,19 @@ class MarkDoneAction : ActionCallback {
     }
 }
 
+/** Re-renders immediately off current local data, then kicks off a
+ * one-off network pull (see SyncScheduler.triggerImmediatePullSync) which
+ * re-renders again once it lands -- the widget's manual refresh button. */
+class RefreshAction : ActionCallback {
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
+        LunentousWidget().updateAll(context)
+        SyncScheduler.triggerImmediatePullSync(context)
+    }
+}
+
 /** Called after anything that could change what the widget shows -- see
- * PullSyncWorker and the in-app mark-done flows. A no-op when no widget
- * instance is currently placed. */
+ * OutboxRepository (every local write), PullSyncWorker, and the in-app
+ * mark-done flows. A no-op when no widget instance is currently placed. */
 suspend fun refreshLunentousWidget(context: Context) {
     LunentousWidget().updateAll(context)
 }

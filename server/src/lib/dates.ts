@@ -53,6 +53,18 @@ export function dateInRange(
   return D >= start || D <= end;
 }
 
+/** Next occurrence of a fixed calendar month/day at-or-after `from`, or
+ * strictly after it when `strictlyAfter` is set -- used by annual
+ * fixed-date reminder rules in place of an N-day interval. `from` and the
+ * candidate date compare correctly as plain strings since both are always
+ * "YYYY-MM-DD". */
+export function nextAnnualOccurrence(from: ISODate, month: number, day: number, strictlyAfter: boolean): ISODate {
+  const { y } = parseISODate(from);
+  let candidate = toISODate(y, month, day);
+  const shouldAdvance = strictlyAfter ? candidate <= from : candidate < from;
+  return shouldAdvance ? toISODate(y + 1, month, day) : candidate;
+}
+
 export interface OverridePeriodLike {
   start_month: number;
   start_day: number;

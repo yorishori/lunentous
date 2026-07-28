@@ -218,8 +218,8 @@ fun PlantDetailScreen(
             isSaving = viewModel.isSavingRule,
             error = viewModel.ruleError,
             onDismiss = { ruleFormTarget = null },
-            onSave = { reminderTypeLocalId, defaultIntervalDays, periods ->
-                viewModel.saveReminderRule(existing?.rule?.localId, reminderTypeLocalId, defaultIntervalDays, periods) {
+            onSave = { reminderTypeLocalId, defaultIntervalDays, periods, annualMonth, annualDay ->
+                viewModel.saveReminderRule(existing?.rule?.localId, reminderTypeLocalId, defaultIntervalDays, periods, annualMonth, annualDay) {
                     ruleFormTarget = null
                 }
             },

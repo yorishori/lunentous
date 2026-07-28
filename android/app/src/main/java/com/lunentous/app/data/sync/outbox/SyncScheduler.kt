@@ -13,6 +13,7 @@ import java.util.concurrent.TimeUnit
 
 private const val OUTBOX_WORK_NAME = "outbox_sync"
 private const val PULL_SYNC_WORK_NAME = "periodic_pull_sync"
+private const val IMMEDIATE_PULL_SYNC_WORK_NAME = "immediate_pull_sync"
 private const val PULL_SYNC_INTERVAL_HOURS = 4L
 
 /**
@@ -32,6 +33,16 @@ object SyncScheduler {
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
             .build()
         WorkManager.getInstance(context).enqueueUniqueWork(OUTBOX_WORK_NAME, ExistingWorkPolicy.KEEP, request)
+    }
+
+    /** One-off pull, distinct from the periodic job below -- used by the
+     * widget's manual refresh button. A different unique work name than
+     * the periodic job's so this doesn't cancel/replace that schedule. */
+    fun triggerImmediatePullSync(context: Context) {
+        val request = OneTimeWorkRequestBuilder<PullSyncWorker>()
+            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+            .build()
+        WorkManager.getInstance(context).enqueueUniqueWork(IMMEDIATE_PULL_SYNC_WORK_NAME, ExistingWorkPolicy.REPLACE, request)
     }
 
     fun schedulePeriodicPullSync(context: Context) {

@@ -28,6 +28,19 @@ export function dateInRange(date: ISODate, startMonth: number, startDay: number,
   return D >= start || D <= end;
 }
 
+/** Next occurrence of a fixed calendar month/day at-or-after `from`, or
+ * strictly after it when `strictlyAfter` is set -- used by annual
+ * fixed-date reminder rules in place of an N-day interval. */
+export function nextAnnualOccurrence(from: ISODate, month: number, day: number, strictlyAfter: boolean): ISODate {
+  const { y } = parseISODate(from);
+  const mm = String(month).padStart(2, "0");
+  const dd = String(day).padStart(2, "0");
+  let candidate = `${y}-${mm}-${dd}`;
+  const shouldAdvance = strictlyAfter ? candidate <= from : candidate < from;
+  if (shouldAdvance) candidate = `${y + 1}-${mm}-${dd}`;
+  return candidate;
+}
+
 export interface OverridePeriodLike {
   start_month: number;
   start_day: number;
@@ -54,20 +67,28 @@ export function resolveInterval(
  * collecting every occurrence that lands within [rangeStart, rangeEnd] --
  * including the starting due date itself, if it's in range. Display only;
  * never written back to the database. `maxIterations` bounds the walk when
- * the due date is far outside the requested range. */
+ * the due date is far outside the requested range. When `annualMonth`/
+ * `annualDay` are set (mutually exclusive with the interval fields, per an
+ * annual fixed-date rule), steps forward a year at a time instead. */
 export function projectOccurrencesInRange(
   fromDueDate: ISODate,
   defaultIntervalDays: number | null,
   periods: OverridePeriodLike[],
   rangeStart: ISODate,
   rangeEnd: ISODate,
-  maxIterations = 500
+  maxIterations = 500,
+  annualMonth: number | null = null,
+  annualDay: number | null = null
 ): ISODate[] {
   const results: ISODate[] = [];
   let current = fromDueDate;
   for (let i = 0; i < maxIterations; i++) {
     if (current > rangeEnd) break;
     if (current >= rangeStart) results.push(current);
+    if (annualMonth != null && annualDay != null) {
+      current = nextAnnualOccurrence(current, annualMonth, annualDay, true);
+      continue;
+    }
     const interval = resolveInterval(defaultIntervalDays, periods, current);
     if (interval == null) break;
     current = addDays(current, interval);

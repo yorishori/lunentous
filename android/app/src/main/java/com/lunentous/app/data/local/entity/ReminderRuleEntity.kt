@@ -21,6 +21,11 @@ data class ReminderRuleEntity(
     val plantLocalId: Long,
     val reminderTypeLocalId: Long,
     val defaultIntervalDays: Int? = null,
+    // Mutually exclusive with defaultIntervalDays/override periods -- a
+    // fixed calendar date the reminder recurs on every year instead of an
+    // N-day interval. Mirrors the server's annual_month/annual_day.
+    val annualMonth: Int? = null,
+    val annualDay: Int? = null,
     val createdAt: String = "",
     val dirty: Boolean = false,
     val deleted: Boolean = false,

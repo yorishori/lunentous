@@ -43,6 +43,11 @@ export interface ReminderRule {
   plant_id: number;
   reminder_type_id: number;
   default_interval_days: number | null;
+  // Mutually exclusive with default_interval_days/override_periods -- a
+  // fixed calendar date the reminder recurs on every year instead of an
+  // N-day interval.
+  annual_month: number | null;
+  annual_day: number | null;
   override_periods: OverridePeriod[];
 }
 
