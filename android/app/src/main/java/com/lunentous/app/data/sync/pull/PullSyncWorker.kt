@@ -30,6 +30,7 @@ class PullSyncWorker(context: Context, params: WorkerParameters) : CoroutineWork
                 container.reminderRuleRepository.pullSyncForPlant(plant.localId)
                 container.phaseWindowRepository.pullSyncForPlant(plant.localId)
                 container.timelineRepository.pullSyncForPlant(plant.localId)
+                container.oneTimeReminderRepository.pullSyncForPlant(plant.localId)
             }
             refreshLunentousWidget(applicationContext)
         }.fold(onSuccess = { Result.success() }, onFailure = { Result.retry() })

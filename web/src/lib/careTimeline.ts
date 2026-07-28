@@ -3,7 +3,7 @@
 // data-building logic, no React -- mirrors the Android app's
 // CareTimelineViewModel (ui/calendar/timeline/) so both platforms compute
 // the same thing from the same server data.
-import type { Plant, PhaseWindow, ReminderRule, ReminderState } from "../api/types";
+import type { OneTimeReminder, Plant, PhaseWindow, ReminderRule, ReminderState } from "../api/types";
 import { dateInRange, projectOccurrencesInRange, type ISODate } from "./dateMath";
 
 export type ActivityKind = "range" | "point";
@@ -79,10 +79,13 @@ export interface CareTimelineInput {
   reminderStates: ReminderState[]; // must be the /reminder-states response (plant_name/reminder_type_* pre-joined)
   rulesByPlantId: Map<number, ReminderRule[]>;
   phaseWindowsByPlantId: Map<number, PhaseWindow[]>;
+  oneTimeReminders: OneTimeReminder[];
   weeks: WeekInfo[];
   windowStart: ISODate;
   windowEnd: ISODate;
 }
+
+const ONE_TIME_REMINDER_ACTIVITY_ID = "one-time-reminder";
 
 export interface CareTimelineData {
   activities: CareActivity[];
@@ -95,7 +98,7 @@ export interface CareTimelineData {
  * 3-role palette -- every type already has one, so there's no palette
  * left to invent. */
 export function buildCareTimeline(input: CareTimelineInput): CareTimelineData {
-  const { plants, reminderStates, rulesByPlantId, phaseWindowsByPlantId, weeks, windowStart, windowEnd } = input;
+  const { plants, reminderStates, rulesByPlantId, phaseWindowsByPlantId, oneTimeReminders, weeks, windowStart, windowEnd } = input;
   const plantsById = new Map(plants.map((p) => [p.id, p]));
   const lastWeek = weeks[weeks.length - 1];
 
@@ -168,6 +171,33 @@ export function buildCareTimeline(input: CareTimelineInput): CareTimelineData {
     for (const dateStr of occurrences) {
       events.push({ activityId, plantId: plant.id, plantName: plant.name, week: weekIndexForIsoDate(dateStr, weeks), date: dateStr });
     }
+  }
+
+  // Untyped, informational reminders share one synthetic "task" activity
+  // (there's no per-reminder type to key a color/icon off, unlike regular
+  // reminder occurrences) -- only ever a single point, no recurrence to
+  // project forward.
+  for (const reminder of oneTimeReminders) {
+    if (reminder.completed_at != null) continue;
+    if (reminder.due_date < windowStart || reminder.due_date > windowEnd) continue;
+    const plant = plantsById.get(reminder.plant_id);
+    if (!plant) continue;
+    events.push({
+      activityId: ONE_TIME_REMINDER_ACTIVITY_ID,
+      plantId: plant.id,
+      plantName: plant.name,
+      week: weekIndexForIsoDate(reminder.due_date, weeks),
+      date: reminder.due_date,
+    });
+  }
+  if (events.some((e) => e.activityId === ONE_TIME_REMINDER_ACTIVITY_ID)) {
+    pointActivitiesById.set(ONE_TIME_REMINDER_ACTIVITY_ID, {
+      id: ONE_TIME_REMINDER_ACTIVITY_ID,
+      label: "One-time reminder",
+      kind: "point",
+      color: "#f9e2af",
+      icon: "Pin",
+    });
   }
 
   const activities = [

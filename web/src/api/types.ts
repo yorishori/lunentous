@@ -92,6 +92,20 @@ export interface TimelineEvent {
   photos: Photo[];
 }
 
+/** Per-plant, untyped, informational reminder -- no reminder type, and
+ * completing one never logs a timeline entry. Kept (not deleted) once
+ * completed. */
+export interface OneTimeReminder {
+  id: number;
+  plant_id: number;
+  due_date: string;
+  text: string;
+  completed_at: string | null;
+  created_at: string;
+  plant_name?: string;
+  days_overdue?: number;
+}
+
 export interface PlantDetail extends Plant {
   active_phase_windows: PhaseWindow[];
   reminder_states: ReminderState[];

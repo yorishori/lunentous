@@ -2,6 +2,7 @@ package com.lunentous.app.ui.calendar.timeline
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -10,6 +11,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.lunentous.app.data.local.entity.OneTimeReminderEntity
 import com.lunentous.app.data.local.entity.PhaseTypeEntity
 import com.lunentous.app.data.local.entity.PlantEntity
 import com.lunentous.app.data.local.entity.PlantPhaseWindowEntity
@@ -127,13 +129,15 @@ class CareTimelineViewModel(private val container: AppContainer) : ViewModel() {
         rawData,
         container.reminderStateRepository.observeAll(),
         container.timelineRepository.observeAllInRange(windowStart.toString(), windowEnd.toString()),
-    ) { first, states, timelineEntries ->
+        container.oneTimeReminderRepository.observeAll(),
+    ) { first, states, timelineEntries, oneTimeReminders ->
         buildUiState(
             RawData(first.plants, first.reminderTypes, first.phaseTypes, first.phaseWindows, first.reminderRules, states),
             weeks,
             windowStart,
             windowEnd,
             timelineEntries,
+            oneTimeReminders,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), CareTimelineUiState())
 
@@ -153,6 +157,7 @@ class CareTimelineViewModel(private val container: AppContainer) : ViewModel() {
                 container.reminderRuleRepository.pullSyncForPlant(plant.localId)
                 container.phaseWindowRepository.pullSyncForPlant(plant.localId)
                 container.timelineRepository.pullSyncForPlant(plant.localId)
+                container.oneTimeReminderRepository.pullSyncForPlant(plant.localId)
             }
             isRefreshing = false
         }
@@ -211,12 +216,15 @@ private fun weekIndexFor(date: LocalDate, windowStart: LocalDate, weeks: List<We
 private fun parseColor(hex: String?, fallback: Color): Color =
     hex?.let { runCatching { Color(android.graphics.Color.parseColor(it)) }.getOrNull() } ?: fallback
 
+private const val ONE_TIME_REMINDER_ACTIVITY_ID = "one-time-reminder"
+
 private fun buildUiState(
     raw: RawData,
     weeks: List<WeekInfo>,
     windowStart: LocalDate,
     windowEnd: LocalDate,
     timelineEntries: List<TimelineEventWithPhotos>,
+    oneTimeReminders: List<OneTimeReminderEntity>,
 ): CareTimelineUiState {
     val plantsById = raw.plants.associateBy { it.localId }
     val phaseTypesById = raw.phaseTypes.associateBy { it.localId }
@@ -278,6 +286,18 @@ private fun buildUiState(
         }
     }
 
+    // Untyped, informational reminders share one synthetic "task" activity
+    // (there's no per-reminder type to key a color/icon off, unlike regular
+    // reminder occurrences) -- only ever a single point, no recurrence to
+    // project forward.
+    for (reminder in oneTimeReminders) {
+        if (reminder.completedAt != null) continue
+        val date = LocalDate.parse(reminder.dueDate)
+        if (date.isBefore(windowStart) || date.isAfter(windowEnd)) continue
+        val plant = plantsById[reminder.plantLocalId] ?: continue
+        events.add(CareEvent(ONE_TIME_REMINDER_ACTIVITY_ID, plant.localId, plant.name, weekIndexFor(date, windowStart, weeks), date))
+    }
+
     val rangeActivities = raw.phaseTypes
         .map { type -> CareActivity("phase-${type.localId}", type.name, ActivityKind.RANGE, parseColor(type.color, fallbackColor), Icons.Filled.DateRange) }
         .filter { activity -> ranges.any { it.activityId == activity.id } }
@@ -286,10 +306,13 @@ private fun buildUiState(
         .map { type -> CareActivity("reminder-${type.localId}", type.name, ActivityKind.POINT, parseColor(type.color, fallbackColor), iconFor(type.icon)) }
         .filter { activity -> events.any { it.activityId == activity.id } }
 
+    val oneTimeActivity = CareActivity(ONE_TIME_REMINDER_ACTIVITY_ID, "One-time reminder", ActivityKind.POINT, Color(0xFFF9E2AF), Icons.Filled.PushPin)
+        .takeIf { activity -> events.any { it.activityId == activity.id } }
+
     return CareTimelineUiState(
         loading = false,
         weeks = weeks,
-        activities = rangeActivities + pointActivities,
+        activities = rangeActivities + pointActivities + listOfNotNull(oneTimeActivity),
         ranges = ranges,
         events = events,
         allPlants = raw.plants,

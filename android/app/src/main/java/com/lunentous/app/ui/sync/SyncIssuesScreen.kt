@@ -105,4 +105,5 @@ private fun OutboxEntityType.label(): String = when (this) {
     OutboxEntityType.REMINDER_RULE -> "reminder rule"
     OutboxEntityType.PHASE_WINDOW -> "phase window"
     OutboxEntityType.TIMELINE_EVENT -> "timeline entry"
+    OutboxEntityType.ONE_TIME_REMINDER -> "one-time reminder"
 }

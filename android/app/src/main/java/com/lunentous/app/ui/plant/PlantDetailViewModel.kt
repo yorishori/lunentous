@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.lunentous.app.data.local.entity.OneTimeReminderEntity
 import com.lunentous.app.data.local.entity.OverridePeriodEntity
 import com.lunentous.app.data.local.entity.PhaseTypeEntity
 import com.lunentous.app.data.local.entity.PlantEntity
@@ -40,6 +41,9 @@ class PlantDetailViewModel(private val container: AppContainer, private val plan
     val timelineEvents: StateFlow<List<TimelineEventWithPhotos>> = container.timelineRepository.observeRecentByPlant(plantLocalId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val oneTimeReminders: StateFlow<List<OneTimeReminderEntity>> = container.oneTimeReminderRepository.observeByPlant(plantLocalId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     var isArchiving by mutableStateOf(false)
         private set
 
@@ -64,6 +68,12 @@ class PlantDetailViewModel(private val container: AppContainer, private val plan
     var entryError by mutableStateOf<String?>(null)
         private set
 
+    var isSavingOneTimeReminder by mutableStateOf(false)
+        private set
+
+    var oneTimeReminderError by mutableStateOf<String?>(null)
+        private set
+
     init {
         viewModelScope.launch { container.plantRepository.pullSync() }
         viewModelScope.launch { container.reminderTypeRepository.pullSync() }
@@ -71,6 +81,7 @@ class PlantDetailViewModel(private val container: AppContainer, private val plan
         viewModelScope.launch { container.phaseTypeRepository.pullSync() }
         viewModelScope.launch { container.phaseWindowRepository.pullSyncForPlant(plantLocalId) }
         viewModelScope.launch { container.timelineRepository.pullSyncForPlant(plantLocalId) }
+        viewModelScope.launch { container.oneTimeReminderRepository.pullSyncForPlant(plantLocalId) }
     }
 
     fun toggleArchive() {
@@ -202,6 +213,39 @@ class PlantDetailViewModel(private val container: AppContainer, private val plan
                 onDone()
             }
             result.onFailure { entryError = it.message ?: "Failed to delete timeline entry" }
+        }
+    }
+
+    fun saveOneTimeReminder(existingReminderLocalId: Long?, dueDate: String, text: String, onDone: () -> Unit) {
+        viewModelScope.launch {
+            isSavingOneTimeReminder = true
+            oneTimeReminderError = null
+            val result = if (existingReminderLocalId != null) {
+                container.oneTimeReminderRepository.update(existingReminderLocalId, dueDate, text)
+            } else {
+                container.oneTimeReminderRepository.create(plantLocalId, dueDate, text)
+            }
+            isSavingOneTimeReminder = false
+            result.onSuccess { onDone() }
+            result.onFailure { oneTimeReminderError = it.message ?: "Failed to save one-time reminder" }
+        }
+    }
+
+    fun setOneTimeReminderCompleted(reminderLocalId: Long, completed: Boolean) {
+        viewModelScope.launch {
+            container.oneTimeReminderRepository.setCompleted(reminderLocalId, completed)
+                .onFailure { oneTimeReminderError = it.message ?: "Failed to update one-time reminder" }
+        }
+    }
+
+    fun deleteOneTimeReminder(reminderLocalId: Long, onDone: () -> Unit) {
+        viewModelScope.launch {
+            isSavingOneTimeReminder = true
+            oneTimeReminderError = null
+            val result = container.oneTimeReminderRepository.delete(reminderLocalId)
+            isSavingOneTimeReminder = false
+            result.onSuccess { onDone() }
+            result.onFailure { oneTimeReminderError = it.message ?: "Failed to delete one-time reminder" }
         }
     }
 }

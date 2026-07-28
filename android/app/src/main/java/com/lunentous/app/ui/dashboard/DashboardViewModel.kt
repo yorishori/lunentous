@@ -5,25 +5,38 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.lunentous.app.data.local.entity.OneTimeReminderEntity
 import com.lunentous.app.data.local.entity.PlantEntity
+import com.lunentous.app.data.local.entity.ReminderStateEntity
+import com.lunentous.app.data.local.entity.ReminderTypeEntity
+import com.lunentous.app.data.repository.ReminderRuleWithPeriods
 import com.lunentous.app.di.AppContainer
 import java.io.File
 import java.time.LocalDate
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+/** A row in the overdue/upcoming lists -- either a regular typed reminder
+ * (reminderTypeLocalId set, has an icon/color) or a one-time informational
+ * reminder (reminderTypeLocalId null, no icon, reminderTypeName holds the
+ * reminder's own free text instead of a type name). entityLocalId is
+ * whichever local id the row's completion action needs: a
+ * ReminderStateEntity's for a regular reminder, or a OneTimeReminderEntity's
+ * for a one-time one. */
 data class ReminderTask(
-    val stateLocalId: Long,
+    val entityLocalId: Long,
     val plantLocalId: Long,
     val plantName: String,
-    val reminderTypeLocalId: Long,
+    val reminderTypeLocalId: Long?,
     val reminderTypeName: String,
     val reminderTypeIcon: String?,
     val reminderTypeColor: String?,
     val daysOverdue: Int,
+    val isOneTime: Boolean = false,
 )
 
 /** One button in a plant card's quick-log bar -- every reminder type the
@@ -46,13 +59,22 @@ data class DashboardUiState(
     val plants: List<PlantCardData> = emptyList(),
 )
 
+private data class BaseData(
+    val activePlants: List<PlantEntity>,
+    val allPlants: List<PlantEntity>,
+    val states: List<ReminderStateEntity>,
+    val types: List<ReminderTypeEntity>,
+    val rules: List<ReminderRuleWithPeriods>,
+)
+
 /**
  * Reads are pure Room Flows (offline-safe, instant) combined client-side --
  * unlike the server's /reminder-states response, ReminderStateEntity doesn't
  * carry joined plant/type names, so this ViewModel does that join itself.
- * Mirrors web/src/pages/Dashboard.tsx's overdue/upcoming split; each plant
- * card's quick-log bar has no direct web equivalent (a mobile-only
- * shortcut for logging any of that plant's reminder types in one tap).
+ * Mirrors web/src/pages/Dashboard.tsx's overdue/upcoming split (now also
+ * mixing in one-time reminders, same as web); each plant card's quick-log
+ * bar has no direct web equivalent (a mobile-only shortcut for logging any
+ * of that plant's reminder types in one tap).
  */
 class DashboardViewModel(private val container: AppContainer) : ViewModel() {
     private val plantRepository = container.plantRepository
@@ -60,25 +82,32 @@ class DashboardViewModel(private val container: AppContainer) : ViewModel() {
     private val reminderTypeRepository = container.reminderTypeRepository
     private val reminderRuleRepository = container.reminderRuleRepository
     private val timelineRepository = container.timelineRepository
+    private val oneTimeReminderRepository = container.oneTimeReminderRepository
 
     val uiState: StateFlow<DashboardUiState> = combine(
-        plantRepository.observeByArchived(false),
-        plantRepository.observeAll(),
-        reminderStateRepository.observeAll(),
-        reminderTypeRepository.observeAll(),
-        reminderRuleRepository.observeAll(),
-    ) { activePlants, allPlants, states, types, rules ->
-        val plantsById = allPlants.associateBy { it.localId }
-        val typesById = types.associateBy { it.localId }
+        combine(
+            plantRepository.observeByArchived(false),
+            plantRepository.observeAll(),
+            reminderStateRepository.observeAll(),
+            reminderTypeRepository.observeAll(),
+            reminderRuleRepository.observeAll(),
+        ) { activePlants, allPlants, states, types, rules -> BaseData(activePlants, allPlants, states, types, rules) },
+        oneTimeReminderRepository.observeAll(),
+    ) { base, oneTimeReminders -> buildUiState(base, oneTimeReminders) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DashboardUiState())
+
+    private fun buildUiState(base: BaseData, oneTimeReminders: List<OneTimeReminderEntity>): DashboardUiState {
+        val plantsById = base.allPlants.associateBy { it.localId }
+        val typesById = base.types.associateBy { it.localId }
         val today = LocalDate.now().toEpochDay()
 
-        val tasks = states.mapNotNull { state ->
+        val reminderTasks = base.states.mapNotNull { state ->
             val dueDate = state.dueDate ?: return@mapNotNull null
             val plant = plantsById[state.plantLocalId] ?: return@mapNotNull null
             val type = typesById[state.reminderTypeLocalId] ?: return@mapNotNull null
             val daysOverdue = (today - LocalDate.parse(dueDate).toEpochDay()).toInt()
             ReminderTask(
-                stateLocalId = state.localId,
+                entityLocalId = state.localId,
                 plantLocalId = plant.localId,
                 plantName = plant.name,
                 reminderTypeLocalId = type.localId,
@@ -87,10 +116,28 @@ class DashboardViewModel(private val container: AppContainer) : ViewModel() {
                 reminderTypeColor = type.color,
                 daysOverdue = daysOverdue,
             )
-        }.sortedByDescending { it.daysOverdue }
+        }
 
-        val rulesByPlant = rules.groupBy { it.rule.plantLocalId }
-        val plantCards = activePlants.map { plant ->
+        val oneTimeTasks = oneTimeReminders.filter { it.completedAt == null }.mapNotNull { reminder ->
+            val plant = plantsById[reminder.plantLocalId] ?: return@mapNotNull null
+            val daysOverdue = (today - LocalDate.parse(reminder.dueDate).toEpochDay()).toInt()
+            ReminderTask(
+                entityLocalId = reminder.localId,
+                plantLocalId = plant.localId,
+                plantName = plant.name,
+                reminderTypeLocalId = null,
+                reminderTypeName = reminder.text,
+                reminderTypeIcon = null,
+                reminderTypeColor = null,
+                daysOverdue = daysOverdue,
+                isOneTime = true,
+            )
+        }
+
+        val tasks = (reminderTasks + oneTimeTasks).sortedByDescending { it.daysOverdue }
+
+        val rulesByPlant = base.rules.groupBy { it.rule.plantLocalId }
+        val plantCards = base.activePlants.map { plant ->
             val quickLogTypes = rulesByPlant[plant.localId].orEmpty().mapNotNull { ruleWithPeriods ->
                 val type = typesById[ruleWithPeriods.rule.reminderTypeLocalId] ?: return@mapNotNull null
                 QuickLogType(type.localId, type.name, type.icon, type.color)
@@ -98,13 +145,13 @@ class DashboardViewModel(private val container: AppContainer) : ViewModel() {
             PlantCardData(plant, quickLogTypes)
         }
 
-        DashboardUiState(
+        return DashboardUiState(
             loading = false,
             overdue = tasks.filter { it.daysOverdue >= 0 },
             upcoming = tasks.filter { it.daysOverdue < 0 }.take(8),
             plants = plantCards,
         )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DashboardUiState())
+    }
 
     var isRefreshing by mutableStateOf(false)
         private set
@@ -131,6 +178,8 @@ class DashboardViewModel(private val container: AppContainer) : ViewModel() {
             plantRepository.pullSync()
             reminderTypeRepository.pullSync()
             reminderStateRepository.pullSyncAll()
+            val plants = plantRepository.observeByArchived(false).first()
+            plants.forEach { plant -> oneTimeReminderRepository.pullSyncForPlant(plant.localId) }
             isRefreshing = false
         }
     }
@@ -141,11 +190,11 @@ class DashboardViewModel(private val container: AppContainer) : ViewModel() {
 
     /** Same confirm-and-log flow as an overdue/upcoming task row, just
      * triggered from a plant card's quick-log bar instead -- daysOverdue
-     * and stateLocalId are placeholders since ConfirmDialog's message
+     * and entityLocalId are placeholders since ConfirmDialog's message
      * never reads them, only plantName/reminderTypeName. */
     fun requestMarkDoneForType(plant: PlantEntity, type: QuickLogType) {
         confirmingTask = ReminderTask(
-            stateLocalId = 0,
+            entityLocalId = 0,
             plantLocalId = plant.localId,
             plantName = plant.name,
             reminderTypeLocalId = type.reminderTypeLocalId,
@@ -164,13 +213,17 @@ class DashboardViewModel(private val container: AppContainer) : ViewModel() {
         val task = confirmingTask ?: return
         viewModelScope.launch {
             isMarkingDone = true
-            timelineRepository.createEvent(
-                plantLocalId = task.plantLocalId,
-                eventDate = LocalDate.now().toString(),
-                reminderTypeLocalId = task.reminderTypeLocalId,
-                text = null,
-            )
-            reminderStateRepository.pullSyncForPlant(task.plantLocalId)
+            if (task.isOneTime) {
+                oneTimeReminderRepository.setCompleted(task.entityLocalId, true)
+            } else {
+                timelineRepository.createEvent(
+                    plantLocalId = task.plantLocalId,
+                    eventDate = LocalDate.now().toString(),
+                    reminderTypeLocalId = task.reminderTypeLocalId,
+                    text = null,
+                )
+                reminderStateRepository.pullSyncForPlant(task.plantLocalId)
+            }
             container.refreshWidget()
             isMarkingDone = false
             confirmingTask = null

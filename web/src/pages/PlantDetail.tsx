@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Plus, Sprout, MapPin, Calendar as CalendarIcon, Archive, ArchiveRestore } from "lucide-react";
+import { Pencil, Plus, Sprout, MapPin, Calendar as CalendarIcon, Archive, ArchiveRestore, CheckCircle2, Circle } from "lucide-react";
 import { apiFetch, ApiError } from "../api/client";
 import type {
+  OneTimeReminder,
   Plant,
   PlantDetail as PlantDetailType,
   ReminderRule,
@@ -17,6 +18,7 @@ import SlideOver from "../components/SlideOver";
 import PlantForm from "../components/PlantForm";
 import ReminderRuleForm from "../components/ReminderRuleForm";
 import PhaseWindowForm from "../components/PhaseWindowForm";
+import OneTimeReminderForm from "../components/OneTimeReminderForm";
 import TimelineFeed from "../components/TimelineFeed";
 import TimelineEntryForm from "../components/TimelineEntryForm";
 import Skeleton from "../components/Skeleton";
@@ -45,6 +47,7 @@ type SlideoverState =
   | { type: "plant" }
   | { type: "rule"; rule?: ReminderRule }
   | { type: "window"; window?: PhaseWindow }
+  | { type: "one-time-reminder"; reminder?: OneTimeReminder }
   | { type: "timeline-entry"; event?: TimelineEvent };
 
 function ExistingPlant({ plantId }: { plantId: number }) {
@@ -76,6 +79,21 @@ function ExistingPlant({ plantId }: { plantId: number }) {
   const windowsQuery = useQuery({
     queryKey: ["phase-windows", plantId],
     queryFn: () => apiFetch<PhaseWindow[]>(`/plants/${plantId}/phase-windows`),
+  });
+
+  const oneTimeRemindersQuery = useQuery({
+    queryKey: ["one-time-reminders", plantId],
+    queryFn: () => apiFetch<OneTimeReminder[]>(`/plants/${plantId}/one-time-reminders`),
+  });
+
+  const toggleReminderCompleted = useMutation({
+    mutationFn: (reminder: OneTimeReminder) =>
+      apiFetch(`/one-time-reminders/${reminder.id}`, {
+        method: "PATCH",
+        body: { completed_at: reminder.completed_at ? null : new Date().toISOString() },
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["one-time-reminders", plantId] }),
+    onError: (err) => showToast((err as ApiError).message ?? "Failed to update reminder", "error"),
   });
 
   const archiveMutation = useMutation({
@@ -233,9 +251,15 @@ function ExistingPlant({ plantId }: { plantId: number }) {
                 <div>
                   <div style={{ fontWeight: 600 }}>{type?.name}</div>
                   <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-                    {rule.default_interval_days ? `Every ${rule.default_interval_days} days` : "Paused by default"}
-                    {rule.override_periods.length > 0 &&
-                      ` · ${rule.override_periods.length} override${rule.override_periods.length === 1 ? "" : "s"}`}
+                    {rule.annual_month != null && rule.annual_day != null ? (
+                      `Every year on ${rule.annual_month}/${rule.annual_day}`
+                    ) : (
+                      <>
+                        {rule.default_interval_days ? `Every ${rule.default_interval_days} days` : "Paused by default"}
+                        {rule.override_periods.length > 0 &&
+                          ` · ${rule.override_periods.length} override${rule.override_periods.length === 1 ? "" : "s"}`}
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -253,6 +277,58 @@ function ExistingPlant({ plantId }: { plantId: number }) {
           );
         })}
         {(rulesQuery.data ?? []).length === 0 && <p style={{ color: "var(--text-muted)" }}>No reminder rules yet.</p>}
+      </section>
+
+      <section style={{ marginBottom: "1.75rem" }}>
+        <div className="section-header">
+          <h2>One-time reminders</h2>
+          <button type="button" className="btn secondary" onClick={() => setSlideover({ type: "one-time-reminder" })}>
+            <Plus size={15} /> Add
+          </button>
+        </div>
+        {(oneTimeRemindersQuery.data ?? []).map((r) => {
+          const isCompleted = r.completed_at != null;
+          return (
+            <div key={r.id} className="item-row">
+              <div className="item-row-main">
+                <button
+                  type="button"
+                  className="btn icon-btn secondary"
+                  onClick={() => toggleReminderCompleted.mutate(r)}
+                  aria-label={isCompleted ? "Mark incomplete" : "Mark complete"}
+                  style={{ color: isCompleted ? "var(--ok)" : undefined }}
+                >
+                  {isCompleted ? <CheckCircle2 size={16} /> : <Circle size={16} />}
+                </button>
+                <div>
+                  <div
+                    style={{
+                      fontWeight: 600,
+                      textDecoration: isCompleted ? "line-through" : "none",
+                      color: isCompleted ? "var(--text-muted)" : undefined,
+                    }}
+                  >
+                    {r.text}
+                  </div>
+                  <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>{r.due_date}</div>
+                </div>
+              </div>
+              <div className="item-row-actions">
+                <button
+                  type="button"
+                  className="btn icon-btn secondary icon-btn-edit"
+                  onClick={() => setSlideover({ type: "one-time-reminder", reminder: r })}
+                  aria-label="Edit one-time reminder"
+                >
+                  <Pencil size={14} />
+                </button>
+              </div>
+            </div>
+          );
+        })}
+        {(oneTimeRemindersQuery.data ?? []).length === 0 && (
+          <p style={{ color: "var(--text-muted)" }}>No one-time reminders yet.</p>
+        )}
       </section>
 
       <section>
@@ -300,6 +376,16 @@ function ExistingPlant({ plantId }: { plantId: number }) {
             existingRule={slideover.rule}
             onDone={closeSlideover}
           />
+        )}
+      </SlideOver>
+
+      <SlideOver
+        open={slideover.type === "one-time-reminder"}
+        title={slideover.type === "one-time-reminder" && slideover.reminder ? "Edit one-time reminder" : "Add one-time reminder"}
+        onClose={closeSlideover}
+      >
+        {slideover.type === "one-time-reminder" && (
+          <OneTimeReminderForm plantId={plantId} existingReminder={slideover.reminder} onDone={closeSlideover} />
         )}
       </SlideOver>
 

@@ -8,6 +8,8 @@ import com.lunentous.app.data.remote.dto.CreatePlantRequest
 import com.lunentous.app.data.remote.dto.CreateReminderRuleRequest
 import com.lunentous.app.data.remote.dto.CreateReminderTypeRequest
 import com.lunentous.app.data.remote.dto.CreatedApiKeyDto
+import com.lunentous.app.data.remote.dto.CreateOneTimeReminderRequest
+import com.lunentous.app.data.remote.dto.OneTimeReminderDto
 import com.lunentous.app.data.remote.dto.PhaseTypeDto
 import com.lunentous.app.data.remote.dto.PhaseWindowDto
 import com.lunentous.app.data.remote.dto.PlantDetailDto
@@ -16,6 +18,7 @@ import com.lunentous.app.data.remote.dto.ReminderRuleDto
 import com.lunentous.app.data.remote.dto.ReminderStateDto
 import com.lunentous.app.data.remote.dto.ReminderTypeDto
 import com.lunentous.app.data.remote.dto.TimelineEventDto
+import com.lunentous.app.data.remote.dto.UpdateOneTimeReminderRequest
 import com.lunentous.app.data.remote.dto.UpdateReminderRuleRequest
 import com.lunentous.app.data.remote.dto.UpdateTimelineEventRequest
 import okhttp3.MultipartBody
@@ -139,6 +142,24 @@ interface LunentousApi {
 
     @DELETE("api/phase-windows/{id}")
     suspend fun deletePhaseWindow(@Path("id") id: Long): Response<Unit>
+
+    // ---------- One-time reminders ----------
+
+    @GET("api/plants/{plantId}/one-time-reminders")
+    suspend fun getOneTimeReminders(@Path("plantId") plantId: Long): List<OneTimeReminderDto>
+
+    /** Across every plant -- used by the Dashboard. */
+    @GET("api/one-time-reminders")
+    suspend fun getAllOneTimeReminders(): List<OneTimeReminderDto>
+
+    @POST("api/plants/{plantId}/one-time-reminders")
+    suspend fun createOneTimeReminder(@Path("plantId") plantId: Long, @Body body: CreateOneTimeReminderRequest): OneTimeReminderDto
+
+    @PATCH("api/one-time-reminders/{id}")
+    suspend fun updateOneTimeReminder(@Path("id") id: Long, @Body body: UpdateOneTimeReminderRequest): OneTimeReminderDto
+
+    @DELETE("api/one-time-reminders/{id}")
+    suspend fun deleteOneTimeReminder(@Path("id") id: Long): Response<Unit>
 
     // ---------- Timeline ----------
 

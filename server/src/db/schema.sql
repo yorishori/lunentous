@@ -94,6 +94,20 @@ CREATE TABLE IF NOT EXISTS photos (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Per-plant, untyped, informational reminders -- no reminder_type, and
+-- completing one never writes a timeline_events row (unlike a normal
+-- reminder occurrence). completed_at is kept (not deleted) once set, so
+-- there's a record of what was done, e.g. "give this plant to a friend
+-- on 25 Sept" or "buy a new pot".
+CREATE TABLE IF NOT EXISTS one_time_reminders (
+    id INTEGER PRIMARY KEY,
+    plant_id INTEGER NOT NULL REFERENCES plants(id) ON DELETE CASCADE,
+    due_date DATE NOT NULL,
+    text TEXT NOT NULL,
+    completed_at DATETIME,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS api_keys (
     id INTEGER PRIMARY KEY,
     key_hash TEXT NOT NULL,
@@ -108,3 +122,4 @@ CREATE INDEX IF NOT EXISTS idx_override_periods_rule ON override_periods(reminde
 CREATE INDEX IF NOT EXISTS idx_phase_windows_plant ON plant_phase_windows(plant_id);
 CREATE INDEX IF NOT EXISTS idx_photos_plant ON photos(plant_id);
 CREATE INDEX IF NOT EXISTS idx_photos_timeline_event ON photos(timeline_event_id);
+CREATE INDEX IF NOT EXISTS idx_one_time_reminders_plant ON one_time_reminders(plant_id, due_date);

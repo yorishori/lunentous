@@ -11,6 +11,7 @@ import com.lunentous.app.data.remote.NetworkModule
 import com.lunentous.app.data.settings.AppearanceStore
 import com.lunentous.app.data.settings.NotificationScheduleStore
 import com.lunentous.app.data.repository.AccountRepository
+import com.lunentous.app.data.repository.OneTimeReminderRepository
 import com.lunentous.app.data.repository.PhaseTypeRepository
 import com.lunentous.app.data.repository.PhaseWindowRepository
 import com.lunentous.app.data.repository.PlantRepository
@@ -99,6 +100,14 @@ class AppContainer(context: Context) {
         gson,
         provisionalDueDateCalculator,
     )
+    val oneTimeReminderRepository = OneTimeReminderRepository(
+        database.oneTimeReminderDao(),
+        database.plantDao(),
+        api,
+        sessionStore,
+        outboxRepository,
+        gson,
+    )
     val accountRepository = AccountRepository(api, sessionStore)
 
     val reminderNotifier = ReminderNotifier(
@@ -117,6 +126,7 @@ class AppContainer(context: Context) {
             OutboxEntityType.REMINDER_RULE to reminderRuleRepository,
             OutboxEntityType.PHASE_WINDOW to phaseWindowRepository,
             OutboxEntityType.TIMELINE_EVENT to timelineRepository,
+            OutboxEntityType.ONE_TIME_REMINDER to oneTimeReminderRepository,
         ),
         sessionStore,
     )

@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2, ListChecks, Plus } from "lucide-react";
 import { apiFetch, ApiError } from "../api/client";
-import type { Plant, ReminderState } from "../api/types";
+import type { OneTimeReminder, Plant, ReminderState } from "../api/types";
 import PlantCard from "../components/PlantCard";
 import ConfirmDialog from "../components/ConfirmDialog";
 import Skeleton from "../components/Skeleton";
@@ -11,10 +11,26 @@ import { useToast } from "../components/Toast";
 import { getIcon } from "../lib/icons";
 import { hasDuplicateEntry } from "../lib/duplicateCheck";
 
+/** Normalizes a regular reminder occurrence and a one-time informational
+ * reminder into one shape the overdue/upcoming lists can render/sort
+ * uniformly -- a one-time task has no type (icon/color stay null) and
+ * completing it is a PATCH, not a logged timeline entry. */
+interface DashboardTask {
+  id: string;
+  plantId: number;
+  plantName: string;
+  label: string;
+  icon: string | null;
+  color: string | null;
+  daysOverdue: number;
+  state?: ReminderState;
+  oneTimeReminder?: OneTimeReminder;
+}
+
 export default function Dashboard() {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
-  const [confirming, setConfirming] = useState<ReminderState | null>(null);
+  const [confirming, setConfirming] = useState<DashboardTask | null>(null);
   const [duplicateExists, setDuplicateExists] = useState(false);
   const [checkingDuplicate, setCheckingDuplicate] = useState(false);
 
@@ -32,28 +48,42 @@ export default function Dashboard() {
     queryFn: () => apiFetch<ReminderState[]>("/reminder-states"),
   });
 
+  const { data: oneTimeReminders } = useQuery({
+    queryKey: ["one-time-reminders"],
+    queryFn: () => apiFetch<OneTimeReminder[]>("/one-time-reminders?completed=false"),
+  });
+
   const markDone = useMutation({
-    mutationFn: (state: ReminderState) => {
+    mutationFn: (task: DashboardTask) => {
+      if (task.oneTimeReminder) {
+        return apiFetch(`/one-time-reminders/${task.oneTimeReminder.id}`, {
+          method: "PATCH",
+          body: { completed_at: new Date().toISOString() },
+        });
+      }
+      const state = task.state!;
       const formData = new FormData();
       formData.append("event_date", new Date().toISOString().slice(0, 10));
       formData.append("reminder_type_id", String(state.reminder_type_id));
       return apiFetch(`/plants/${state.plant_id}/timeline`, { method: "POST", body: formData, isFormData: true });
     },
-    onSuccess: (_data, state) => {
+    onSuccess: (_data, task) => {
       queryClient.invalidateQueries({ queryKey: ["reminder-states"] });
-      queryClient.invalidateQueries({ queryKey: ["plant", state.plant_id] });
-      queryClient.invalidateQueries({ queryKey: ["timeline", state.plant_id] });
-      showToast(`${state.reminder_type_name} marked as done`, "success");
+      queryClient.invalidateQueries({ queryKey: ["one-time-reminders"] });
+      queryClient.invalidateQueries({ queryKey: ["plant", task.plantId] });
+      queryClient.invalidateQueries({ queryKey: ["timeline", task.plantId] });
+      showToast(task.oneTimeReminder ? "Reminder marked complete" : `${task.label} marked as done`, "success");
       closeConfirm();
     },
     onError: (err) => showToast((err as ApiError).message ?? "Failed to mark as done", "error"),
   });
 
-  async function openConfirm(state: ReminderState) {
-    setConfirming(state);
+  async function openConfirm(task: DashboardTask) {
+    setConfirming(task);
+    if (task.oneTimeReminder) return;
     setCheckingDuplicate(true);
     const today = new Date().toISOString().slice(0, 10);
-    const duplicate = await hasDuplicateEntry(state.plant_id, state.reminder_type_id, today).catch(() => false);
+    const duplicate = await hasDuplicateEntry(task.plantId, task.state!.reminder_type_id, today).catch(() => false);
     setCheckingDuplicate(false);
     setDuplicateExists(duplicate);
   }
@@ -63,12 +93,34 @@ export default function Dashboard() {
     setDuplicateExists(false);
   }
 
-  const due = (states ?? [])
+  const reminderTasks: DashboardTask[] = (states ?? [])
     .filter((s) => s.due_date)
-    .sort((a, b) => (b.days_overdue ?? -Infinity) - (a.days_overdue ?? -Infinity));
+    .map((s) => ({
+      id: `reminder-${s.id}`,
+      plantId: s.plant_id,
+      plantName: s.plant_name ?? "",
+      label: s.reminder_type_name ?? "",
+      icon: s.reminder_type_icon ?? null,
+      color: s.reminder_type_color ?? null,
+      daysOverdue: s.days_overdue ?? -1,
+      state: s,
+    }));
 
-  const overdue = due.filter((s) => (s.days_overdue ?? -1) >= 0);
-  const upcoming = due.filter((s) => (s.days_overdue ?? -1) < 0).slice(0, 8);
+  const oneTimeTasks: DashboardTask[] = (oneTimeReminders ?? []).map((r) => ({
+    id: `one-time-${r.id}`,
+    plantId: r.plant_id,
+    plantName: r.plant_name ?? "",
+    label: r.text,
+    icon: null,
+    color: null,
+    daysOverdue: r.days_overdue ?? 0,
+    oneTimeReminder: r,
+  }));
+
+  const due = [...reminderTasks, ...oneTimeTasks].sort((a, b) => b.daysOverdue - a.daysOverdue);
+
+  const overdue = due.filter((t) => t.daysOverdue >= 0);
+  const upcoming = due.filter((t) => t.daysOverdue < 0).slice(0, 8);
 
   if (isLoading) {
     return (
@@ -106,8 +158,8 @@ export default function Dashboard() {
             </h2>
           </div>
           <div className="task-list">
-            {overdue.map((s) => (
-              <TaskRow key={s.id} state={s} onMarkDone={() => openConfirm(s)} />
+            {overdue.map((t) => (
+              <TaskRow key={t.id} task={t} onMarkDone={() => openConfirm(t)} />
             ))}
           </div>
         </section>
@@ -121,8 +173,8 @@ export default function Dashboard() {
             </h2>
           </div>
           <div className="task-list">
-            {upcoming.map((s) => (
-              <TaskRow key={s.id} state={s} onMarkDone={() => openConfirm(s)} />
+            {upcoming.map((t) => (
+              <TaskRow key={t.id} task={t} onMarkDone={() => openConfirm(t)} />
             ))}
           </div>
         </section>
@@ -140,15 +192,17 @@ export default function Dashboard() {
 
       <ConfirmDialog
         open={confirming !== null}
-        title="Mark as done?"
+        title={confirming?.oneTimeReminder ? "Mark complete?" : "Mark as done?"}
         message={
           confirming
-            ? duplicateExists
-              ? `You already logged "${confirming.reminder_type_name}" for ${confirming.plant_name} today. Mark it as done again anyway?`
-              : `This logs "${confirming.reminder_type_name}" for ${confirming.plant_name} today and recalculates its next due date.`
+            ? confirming.oneTimeReminder
+              ? `This marks "${confirming.label}" complete for ${confirming.plantName}.`
+              : duplicateExists
+                ? `You already logged "${confirming.label}" for ${confirming.plantName} today. Mark it as done again anyway?`
+                : `This logs "${confirming.label}" for ${confirming.plantName} today and recalculates its next due date.`
             : ""
         }
-        confirmLabel="Mark as done"
+        confirmLabel={confirming?.oneTimeReminder ? "Mark complete" : "Mark as done"}
         pending={markDone.isPending || checkingDuplicate}
         onConfirm={() => confirming && markDone.mutate(confirming)}
         onCancel={closeConfirm}
@@ -157,23 +211,25 @@ export default function Dashboard() {
   );
 }
 
-function TaskRow({ state, onMarkDone }: { state: ReminderState; onMarkDone: () => void }) {
-  const Icon = getIcon(state.reminder_type_icon);
-  const daysOverdue = state.days_overdue ?? -1;
+/** Untyped one-time reminders have no icon at all -- there's no type to
+ * represent, unlike a regular reminder occurrence. */
+function TaskRow({ task, onMarkDone }: { task: DashboardTask; onMarkDone: () => void }) {
+  const Icon = getIcon(task.icon);
+  const daysOverdue = task.daysOverdue;
   const isOverdue = daysOverdue >= 0;
   const label = daysOverdue === 0 ? "Due today" : daysOverdue > 0 ? `${daysOverdue}d overdue` : `in ${-daysOverdue}d`;
 
   return (
     <div className={`task-row${isOverdue ? " overdue" : ""}`}>
-      <Link to={`/plants/${state.plant_id}`} className="task-row-left" style={{ textDecoration: "none", color: "inherit" }}>
+      <Link to={`/plants/${task.plantId}`} className="task-row-left" style={{ textDecoration: "none", color: "inherit" }}>
         <span
           style={{
             display: "inline-flex",
             width: "2rem",
             height: "2rem",
             borderRadius: "999px",
-            background: state.reminder_type_color ? `${state.reminder_type_color}29` : "var(--accent-soft)",
-            color: state.reminder_type_color ?? "var(--accent)",
+            background: task.color ? `${task.color}29` : "var(--accent-soft)",
+            color: task.color ?? "var(--accent)",
             alignItems: "center",
             justifyContent: "center",
             flexShrink: 0,
@@ -182,12 +238,17 @@ function TaskRow({ state, onMarkDone }: { state: ReminderState; onMarkDone: () =
           {Icon && <Icon size={16} />}
         </span>
         <span>
-          <strong>{state.plant_name}</strong> — {state.reminder_type_name}
+          <strong>{task.plantName}</strong> — {task.label}
         </span>
       </Link>
       <div className="task-row-actions">
         <span className={`badge ${isOverdue ? (daysOverdue === 0 ? "due-today" : "overdue") : "ok"}`}>{label}</span>
-        <button type="button" className="btn icon-btn secondary icon-btn-done" onClick={onMarkDone} aria-label="Mark as done">
+        <button
+          type="button"
+          className="btn icon-btn secondary icon-btn-done"
+          onClick={onMarkDone}
+          aria-label={task.oneTimeReminder ? "Mark complete" : "Mark as done"}
+        >
           <CheckCircle2 size={15} />
         </button>
       </div>

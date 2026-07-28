@@ -15,11 +15,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.OutlinedCard
@@ -42,11 +44,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.lunentous.app.data.local.entity.OneTimeReminderEntity
 import com.lunentous.app.data.local.entity.PhaseTypeEntity
 import com.lunentous.app.data.local.entity.PlantEntity
 import com.lunentous.app.data.local.entity.PlantPhaseWindowEntity
@@ -75,6 +79,11 @@ private sealed interface EntryFormTarget {
     data class Edit(val event: TimelineEventWithPhotos) : EntryFormTarget
 }
 
+private sealed interface OneTimeReminderFormTarget {
+    data object Create : OneTimeReminderFormTarget
+    data class Edit(val reminder: OneTimeReminderEntity) : OneTimeReminderFormTarget
+}
+
 /** Hero card (photo/info), edit, and archive/unarchive, plus the reminder
  * rules section -- mirrors web/src/pages/PlantDetail.tsx. Phase windows
  * and the timeline feed land in the next build steps (Android plan's
@@ -98,9 +107,11 @@ fun PlantDetailScreen(
     val phaseTypes by viewModel.phaseTypes.collectAsState()
     val phaseWindows by viewModel.phaseWindows.collectAsState()
     val timelineEvents by viewModel.timelineEvents.collectAsState()
+    val oneTimeReminders by viewModel.oneTimeReminders.collectAsState()
     var ruleFormTarget by remember { mutableStateOf<RuleFormTarget?>(null) }
     var windowFormTarget by remember { mutableStateOf<WindowFormTarget?>(null) }
     var entryFormTarget by remember { mutableStateOf<EntryFormTarget?>(null) }
+    var oneTimeReminderFormTarget by remember { mutableStateOf<OneTimeReminderFormTarget?>(null) }
     var deletingEventLocalId by remember { mutableStateOf<Long?>(null) }
     val colors = LunentousExtendedTheme.colors
     val baseUrl = container.sessionStore.getBaseUrl()
@@ -198,6 +209,13 @@ fun PlantDetailScreen(
                 onEdit = { rule -> ruleFormTarget = RuleFormTarget.Edit(rule) },
             )
 
+            OneTimeRemindersSection(
+                reminders = oneTimeReminders,
+                onAdd = { oneTimeReminderFormTarget = OneTimeReminderFormTarget.Create },
+                onEdit = { reminder -> oneTimeReminderFormTarget = OneTimeReminderFormTarget.Edit(reminder) },
+                onToggleCompleted = { reminder -> viewModel.setOneTimeReminderCompleted(reminder.localId, reminder.completedAt == null) },
+            )
+
             TimelineSection(
                 events = timelineEvents,
                 types = reminderTypes,
@@ -267,6 +285,22 @@ fun PlantDetailScreen(
                 { viewModel.deleteTimelineEntry(e.event.localId) { entryFormTarget = null } }
             },
             onAppendPhotos = { eventLocalId, files -> viewModel.appendPhotos(eventLocalId, files) },
+        )
+    }
+
+    oneTimeReminderFormTarget?.let { target ->
+        val existing = (target as? OneTimeReminderFormTarget.Edit)?.reminder
+        OneTimeReminderFormSheet(
+            existing = existing,
+            isSaving = viewModel.isSavingOneTimeReminder,
+            error = viewModel.oneTimeReminderError,
+            onDismiss = { oneTimeReminderFormTarget = null },
+            onSave = { dueDate, text ->
+                viewModel.saveOneTimeReminder(existing?.localId, dueDate, text) { oneTimeReminderFormTarget = null }
+            },
+            onDelete = existing?.let { r ->
+                { viewModel.deleteOneTimeReminder(r.localId) { oneTimeReminderFormTarget = null } }
+            },
         )
     }
 
@@ -373,10 +407,16 @@ private fun ReminderRulesSection(
                 val type = typesById[ruleWithPeriods.rule.reminderTypeLocalId]
                 val typeColor = type?.color?.let { runCatching { Color(android.graphics.Color.parseColor(it)) }.getOrNull() } ?: colors.accent
                 val interval = ruleWithPeriods.rule.defaultIntervalDays
-                val summary = buildString {
-                    append(if (interval != null) "Every $interval days" else "Paused by default")
-                    if (ruleWithPeriods.overridePeriods.isNotEmpty()) {
-                        append(" · ${ruleWithPeriods.overridePeriods.size} override${if (ruleWithPeriods.overridePeriods.size == 1) "" else "s"}")
+                val annualMonth = ruleWithPeriods.rule.annualMonth
+                val annualDay = ruleWithPeriods.rule.annualDay
+                val summary = if (annualMonth != null && annualDay != null) {
+                    "Every year on $annualMonth/$annualDay"
+                } else {
+                    buildString {
+                        append(if (interval != null) "Every $interval days" else "Paused by default")
+                        if (ruleWithPeriods.overridePeriods.isNotEmpty()) {
+                            append(" · ${ruleWithPeriods.overridePeriods.size} override${if (ruleWithPeriods.overridePeriods.size == 1) "" else "s"}")
+                        }
                     }
                 }
 
@@ -397,6 +437,71 @@ private fun ReminderRulesSection(
                             Text(summary, style = MaterialTheme.typography.bodySmall, color = colors.textMuted)
                         }
                         Icon(Icons.Filled.Edit, contentDescription = "Edit reminder rule", tint = colors.textMuted, modifier = Modifier.size(18.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Untyped, no-log, informational reminders -- no type icon (there's no
+ * type to represent), just a due date + text, with a tap-to-toggle
+ * complete/incomplete circle instead of the reminder rules' edit-only
+ * row, since completing one is a first-class action here rather than
+ * something that only happens via logging a timeline entry. */
+@Composable
+private fun OneTimeRemindersSection(
+    reminders: List<OneTimeReminderEntity>,
+    onAdd: () -> Unit,
+    onEdit: (OneTimeReminderEntity) -> Unit,
+    onToggleCompleted: (OneTimeReminderEntity) -> Unit,
+) {
+    val colors = LunentousExtendedTheme.colors
+
+    Column(modifier = Modifier.padding(top = 20.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("One-time reminders", style = MaterialTheme.typography.titleLarge)
+            TextButton(onClick = onAdd) {
+                Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                Text(" Add", modifier = Modifier.padding(start = 2.dp))
+            }
+        }
+
+        if (reminders.isEmpty()) {
+            Text("No one-time reminders yet.", color = colors.textMuted, modifier = Modifier.padding(top = 4.dp))
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+            reminders.forEach { reminder ->
+                val isCompleted = reminder.completedAt != null
+
+                OutlinedCard(onClick = { onEdit(reminder) }, modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        IconButton(onClick = { onToggleCompleted(reminder) }, modifier = Modifier.size(32.dp)) {
+                            Icon(
+                                if (isCompleted) Icons.Filled.CheckCircle else Icons.Filled.RadioButtonUnchecked,
+                                contentDescription = if (isCompleted) "Mark incomplete" else "Mark complete",
+                                tint = if (isCompleted) colors.ok else colors.textMuted,
+                            )
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                reminder.text,
+                                style = MaterialTheme.typography.bodyMedium,
+                                textDecoration = if (isCompleted) TextDecoration.LineThrough else TextDecoration.None,
+                                color = if (isCompleted) colors.textMuted else colors.text,
+                            )
+                            Text(reminder.dueDate, style = MaterialTheme.typography.bodySmall, color = colors.textMuted)
+                        }
+                        Icon(Icons.Filled.Edit, contentDescription = "Edit one-time reminder", tint = colors.textMuted, modifier = Modifier.size(18.dp))
                     }
                 }
             }

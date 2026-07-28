@@ -6,7 +6,7 @@ import androidx.room.PrimaryKey
 /** The set of local entities that can have unsynced writes queued. Every
  * write-capable repository implements OutboxHandler for exactly its own
  * type -- see the Android plan's Outbox design. */
-enum class OutboxEntityType { PLANT, REMINDER_TYPE, PHASE_TYPE, REMINDER_RULE, PHASE_WINDOW, TIMELINE_EVENT }
+enum class OutboxEntityType { PLANT, REMINDER_TYPE, PHASE_TYPE, REMINDER_RULE, PHASE_WINDOW, TIMELINE_EVENT, ONE_TIME_REMINDER }
 
 /** Not every entity supports every op -- Plant/ReminderType/PhaseType are
  * archive-only (no server DELETE), ReminderRule/PhaseWindow/TimelineEvent

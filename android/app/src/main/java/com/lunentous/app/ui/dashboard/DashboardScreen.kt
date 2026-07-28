@@ -157,9 +157,15 @@ fun DashboardScreen(
     val task = viewModel.confirmingTask
     ConfirmDialog(
         open = task != null,
-        title = "Mark as done?",
-        message = task?.let { "This logs \"${it.reminderTypeName}\" for ${it.plantName} today and recalculates its next due date." } ?: "",
-        confirmLabel = "Mark as done",
+        title = if (task?.isOneTime == true) "Mark complete?" else "Mark as done?",
+        message = task?.let {
+            if (it.isOneTime) {
+                "This marks \"${it.reminderTypeName}\" complete for ${it.plantName}."
+            } else {
+                "This logs \"${it.reminderTypeName}\" for ${it.plantName} today and recalculates its next due date."
+            }
+        } ?: "",
+        confirmLabel = if (task?.isOneTime == true) "Mark complete" else "Mark as done",
         pending = viewModel.isMarkingDone,
         onConfirm = viewModel::confirmMarkDone,
         onDismiss = viewModel::dismissConfirm,

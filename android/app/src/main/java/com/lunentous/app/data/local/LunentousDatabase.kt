@@ -3,6 +3,7 @@ package com.lunentous.app.data.local
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import com.lunentous.app.data.local.dao.OneTimeReminderDao
 import com.lunentous.app.data.local.dao.OutboxDao
 import com.lunentous.app.data.local.dao.OverridePeriodDao
 import com.lunentous.app.data.local.dao.PhaseTypeDao
@@ -13,6 +14,7 @@ import com.lunentous.app.data.local.dao.ReminderRuleDao
 import com.lunentous.app.data.local.dao.ReminderStateDao
 import com.lunentous.app.data.local.dao.ReminderTypeDao
 import com.lunentous.app.data.local.dao.TimelineEventDao
+import com.lunentous.app.data.local.entity.OneTimeReminderEntity
 import com.lunentous.app.data.local.entity.OutboxOperationEntity
 import com.lunentous.app.data.local.entity.OverridePeriodEntity
 import com.lunentous.app.data.local.entity.PhaseTypeEntity
@@ -36,8 +38,9 @@ import com.lunentous.app.data.local.entity.TimelineEventEntity
         TimelineEventEntity::class,
         PhotoEntity::class,
         OutboxOperationEntity::class,
+        OneTimeReminderEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -52,4 +55,5 @@ abstract class LunentousDatabase : RoomDatabase() {
     abstract fun timelineEventDao(): TimelineEventDao
     abstract fun photoDao(): PhotoDao
     abstract fun outboxDao(): OutboxDao
+    abstract fun oneTimeReminderDao(): OneTimeReminderDao
 }

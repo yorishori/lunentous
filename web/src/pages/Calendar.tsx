@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { apiFetch } from "../api/client";
-import type { Plant, ReminderRule, ReminderState, ReminderType, PhaseWindow, TimelineEvent } from "../api/types";
+import type { OneTimeReminder, Plant, ReminderRule, ReminderState, ReminderType, PhaseWindow, TimelineEvent } from "../api/types";
 import { buildCareTimeline, buildWeeks } from "../lib/careTimeline";
 import CareTimelineGrid from "../components/CareTimelineGrid";
 import MultiSelect from "../components/MultiSelect";
@@ -96,6 +96,10 @@ export default function Calendar() {
     queryKey: ["reminder-states"],
     queryFn: () => apiFetch<ReminderState[]>("/reminder-states"),
   });
+  const oneTimeRemindersQuery = useQuery({
+    queryKey: ["one-time-reminders"],
+    queryFn: () => apiFetch<OneTimeReminder[]>("/one-time-reminders"),
+  });
 
   const allPlants = plantsQuery.data ?? [];
   const effectivePlants = selectedPlantIds.length > 0 ? allPlants.filter((p) => selectedPlantIds.includes(p.id)) : allPlants;
@@ -122,12 +126,14 @@ export default function Calendar() {
 
   const effectivePlantIds = new Set(effectivePlants.map((p) => p.id));
   const relevantStates = (statesQuery.data ?? []).filter((s) => effectivePlantIds.has(s.plant_id));
+  const relevantOneTimeReminders = (oneTimeRemindersQuery.data ?? []).filter((r) => effectivePlantIds.has(r.plant_id));
 
   const { activities, ranges, events } = buildCareTimeline({
     plants: effectivePlants,
     reminderStates: relevantStates,
     rulesByPlantId,
     phaseWindowsByPlantId,
+    oneTimeReminders: relevantOneTimeReminders,
     weeks,
     windowStart: isoDate(windowStart),
     windowEnd: isoDate(windowEnd),
