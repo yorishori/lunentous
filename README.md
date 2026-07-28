@@ -188,6 +188,32 @@ to each other without any extra configuration.
 [android/README.md](./android/README.md) for setup, which doesn't require
 Android Studio or root access.
 
+## Testing
+
+```bash
+scripts/test.sh           # everything: server, web, android, docker
+scripts/test.sh server    # just the server: typecheck + vitest
+scripts/test.sh web       # just the web app: typecheck + vitest + production build
+scripts/test.sh android   # just the Android app: JVM unit tests + debug build
+scripts/test.sh docker    # just the Docker image: build + smoke test (runs it, confirms
+                           # it's still up and /api/health responds -- this is what would
+                           # have caught the segfault-on-start regression before it shipped)
+```
+
+Server and web tests live in `server/test/` and `web/src/**/*.test.ts`
+(vitest, `npm test` in either directory) -- mostly covering the date-math
+and due-date-recompute logic that's had real bugs before, since all three
+platforms (server, web, Android) independently implement it. Android's
+equivalent tests are JVM-only unit tests under `android/app/src/test/`
+(no emulator needed, matching this project's no-emulator setup) --
+`./gradlew testDebugUnitTest`.
+
+`scripts/docker-smoke-test.sh` (used by both the `docker` target above and
+`scripts/publish-ghcr.sh`) is what actually builds and *runs* the image
+and checks it stays up, rather than just checking the build itself
+succeeds -- a Docker build can succeed and still produce an image that
+crashes immediately on start.
+
 ## Stack
 
 Node + TypeScript + Fastify + better-sqlite3 on the backend; React + Vite +

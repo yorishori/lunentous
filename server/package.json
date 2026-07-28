@@ -11,7 +11,9 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json && mkdir -p dist/db && cp src/db/schema.sql dist/db/schema.sql",
     "start": "node dist/index.js",
-    "cli:create-api-key": "tsx src/cli/create-api-key.ts"
+    "cli:create-api-key": "tsx src/cli/create-api-key.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@fastify/multipart": "^9.0.1",
@@ -25,7 +27,8 @@
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.10.7",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vitest": "^4.1.10"
   },
   "allowScripts": {
     "esbuild@0.28.1": true,

@@ -39,22 +39,11 @@ echo "Building ${IMAGE_NAME}:${TAG}..."
 docker build --no-cache -t "${IMAGE_NAME}:${TAG}" .
 
 echo "Smoke-testing the built image before publishing..."
-SMOKE_CONTAINER="lunentous-publish-smoke-test"
-docker rm -f "${SMOKE_CONTAINER}" >/dev/null 2>&1 || true
-docker run -d --name "${SMOKE_CONTAINER}" \
-  -e DB_PATH=/tmp/smoke.sqlite -e PHOTOS_DIR=/tmp/smoke-photos \
-  "${IMAGE_NAME}:${TAG}" >/dev/null
-sleep 3
-if ! docker ps --filter "name=${SMOKE_CONTAINER}" --filter "status=running" --format '{{.Names}}' | grep -q "^${SMOKE_CONTAINER}$"; then
-  echo "Smoke test failed -- the built image didn't stay running. Not publishing." >&2
-  echo "--- container logs ---" >&2
-  docker logs "${SMOKE_CONTAINER}" >&2 || true
-  docker rm -f "${SMOKE_CONTAINER}" >/dev/null 2>&1 || true
+if ! SKIP_BUILD=1 "$(dirname "${BASH_SOURCE[0]}")/docker-smoke-test.sh" "${IMAGE_NAME}:${TAG}"; then
+  echo "Smoke test failed -- not publishing." >&2
   docker logout ghcr.io >/dev/null 2>&1 || true
   exit 1
 fi
-docker rm -f "${SMOKE_CONTAINER}" >/dev/null 2>&1 || true
-echo "Smoke test passed."
 
 GIT_SHA="$(git rev-parse --short HEAD 2>/dev/null || true)"
 if [ -n "${GIT_SHA}" ]; then

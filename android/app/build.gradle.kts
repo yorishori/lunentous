@@ -105,4 +105,9 @@ dependencies {
     implementation("androidx.glance:glance-appwidget:1.1.1")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
+
+    // JVM-only unit tests (no device/emulator -- this project deliberately
+    // doesn't have one set up, see android/README.md) for pure logic like
+    // DateMath.kt. Run via `./gradlew testDebugUnitTest`.
+    testImplementation("junit:junit:4.13.2")
 }
