@@ -2,7 +2,7 @@ node_modules/
 dist/
 server/dist/
 web/dist/
-server/data/*.sqlite
+server/data/*.sqlite*
 server/data/photos/*
 !server/data/photos/.gitkeep
 *.log

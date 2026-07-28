@@ -1,0 +1,24 @@
+# Keeps the build context to just what the Dockerfile actually needs --
+# without this, `docker build`/`docker compose build` sends node_modules
+# from every checkout (built for whatever host/OS ran npm install there,
+# not necessarily the container's), the entire unrelated android/ app,
+# and git history, adding hundreds of MB and (for node_modules
+# specifically) a real risk of a COPY step overwriting a container-built
+# native module with a host-built one.
+node_modules
+**/node_modules
+
+android/
+
+.git
+.gitignore
+
+server/data
+web/dist
+server/dist
+
+*.md
+!README.md
+
+.DS_Store
+*.log
